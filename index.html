@@ -226,16 +226,23 @@
     transform-origin: 88% 12%;
     transform: rotate(-24deg);
     transition: transform 0.9s cubic-bezier(.65,0,.35,1);
-    z-index: 5;
+    z-index: 10;
     pointer-events:none;
   }
   .tonearm.playing{ transform: rotate(2deg); }
 
+  .arm-counterweight{
+    position:absolute; top:-4%; right:2%;
+    width: 14px; height:14px; border-radius:50%;
+    background: radial-gradient(circle at 35% 30%, #3a3a3a, #0d0d0d 75%);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.6), 0 0 0 1px rgba(201,154,84,0.4);
+  }
   .arm-base{
     position:absolute; top:2%; right:6%;
     width: 22px; height:22px; border-radius:50%;
     background: radial-gradient(circle at 35% 30%, var(--brass-bright), var(--brass) 70%, #8a6534);
-    box-shadow: 0 3px 6px rgba(0,0,0,0.5);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.4);
+    z-index:2;
   }
   .arm-rod{
     position:absolute; top: 10%; right: 15%;
@@ -243,14 +250,22 @@
     border-radius: 3px;
     background: linear-gradient(90deg, #8a6534, var(--brass-bright) 45%, #8a6534);
     transform-origin: top center;
-    box-shadow: 1px 0 2px rgba(0,0,0,0.4);
+    box-shadow: 1px 0 2px rgba(0,0,0,0.4), 0 0 0 1px rgba(0,0,0,0.35);
   }
   .arm-head{
-    position:absolute; bottom: 4%; left: 50%;
+    position:absolute; bottom: 2%; left: 50%;
     transform: translateX(-50%) rotate(20deg);
-    width: 16px; height: 9px; border-radius: 2px;
-    background: linear-gradient(160deg, #2a2a2a, #0d0d0d);
-    box-shadow: 0 2px 3px rgba(0,0,0,0.5);
+    width: 20px; height: 11px; border-radius: 2px;
+    background: linear-gradient(160deg, #4a4a4a, #1a1a1a);
+    box-shadow: 0 2px 4px rgba(0,0,0,0.6), 0 0 0 1.5px var(--brass-bright);
+  }
+  .arm-head::after{
+    content:"";
+    position:absolute; bottom:-3px; left: 50%;
+    width: 2px; height: 6px;
+    background: var(--brass-bright);
+    transform: translateX(-50%);
+    box-shadow: 0 0 3px rgba(232,189,122,0.8);
   }
 
   /* ---- Now playing text ---- */
@@ -299,17 +314,33 @@
 
   /* ---- Controls ---- */
   .controls{
-    display:flex; align-items:center; justify-content:center; gap:22px;
+    display:flex; align-items:center; justify-content:center; gap:16px;
     margin-bottom: 22px;
   }
   .ctrl-btn{
     background:none; border:none; cursor:pointer;
     color: var(--cream);
     opacity:0.85;
-    transition: transform 0.15s ease, opacity 0.15s ease;
+    transition: transform 0.15s ease, opacity 0.15s ease, color 0.15s ease;
+    position: relative;
   }
   .ctrl-btn:hover{ opacity:1; transform: translateY(-1px); }
   .ctrl-btn:active{ transform: translateY(1px) scale(0.94); }
+
+  .toggle-btn{ opacity: 0.5; }
+  .toggle-btn.active{ opacity: 1; color: var(--brass-bright); }
+
+  .repeat-one-dot{
+    position:absolute; top:-6px; right:-7px;
+    width: 13px; height:13px; border-radius:50%;
+    background: var(--brass-bright);
+    color: var(--walnut-dark);
+    font-size: 8px; font-weight:700;
+    display:none;
+    align-items:center; justify-content:center;
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .repeat-one-dot.show{ display:flex; }
 
   .play-btn{
     width:52px; height:52px; border-radius:50%;
@@ -438,6 +469,7 @@
       </div>
     </div>
     <div class="tonearm" id="tonearm">
+      <div class="arm-counterweight"></div>
       <div class="arm-base"></div>
       <div class="arm-rod"></div>
       <div class="arm-head"></div>
@@ -459,6 +491,9 @@
   </div>
 
   <div class="controls">
+    <button class="ctrl-btn toggle-btn" id="shuffleBtn" title="Shuffle">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17 3l4 4-4 4V8h-3.6c-.5 0-1 .25-1.3.68l-1.1 1.55 1.3 1.85 1-1.4c.1-.1.2-.18.35-.18H21v-2h-3.35c-.15 0-.25-.08-.35-.18l-1-1.4-1.3 1.85 1.1 1.55c.3.43.8.68 1.3.68H21v-2l-4-4v2h-2.85L15 3zM3 6h4.6c.5 0 1 .25 1.3.68L14.5 15c.3.43.8.68 1.3.68H21v2h-5.2c-.5 0-1-.25-1.3-.68L8.9 8.68C8.6 8.25 8.1 8 7.6 8H3V6z"/></svg>
+    </button>
     <button class="ctrl-btn" id="prevBtn" title="Previous">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
     </button>
@@ -467,6 +502,10 @@
     </button>
     <button class="ctrl-btn" id="nextBtn" title="Next">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 6v12l8.5-6z"/></svg>
+    </button>
+    <button class="ctrl-btn toggle-btn" id="repeatBtn" title="Repeat">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M7 7h10v3l4-4-4-4v3H5v6h2V7zm10 10H7v-3l-4 4 4 4v-3h12v-6h-2v4z"/></svg>
+      <span class="repeat-one-dot" id="repeatOneDot">1</span>
     </button>
   </div>
 </div>
@@ -527,6 +566,10 @@
   let timer = null;
   let ytPlayer = null;
   let ytReady = false;
+  let shuffle = (localStorage.getItem('spindle_shuffle') === '1');
+  // repeatMode: 'off' | 'all' | 'one'
+  let repeatMode = localStorage.getItem('spindle_repeat') || 'off';
+  let history = [];
 
   function onYouTubeIframeAPIReady(){
     ytPlayer = new YT.Player('ytPlayer', {
@@ -536,12 +579,30 @@
       events: {
         onReady: () => { ytReady = true; duration = ytPlayer.getDuration() || 0; totalTimeEl.textContent = fmt(duration); },
         onStateChange: (e) => {
-          if(e.data === YT.PlayerState.ENDED){ nextTrack(); }
+          if(e.data === YT.PlayerState.ENDED){ handleTrackEnded(); }
         }
       }
     });
   }
   window.onYouTubeIframeAPIReady = onYouTubeIframeAPIReady;
+
+  function handleTrackEnded(){
+    if(repeatMode === 'one'){
+      // Replay the same track from the start
+      elapsed = 0;
+      if(ytReady){ ytPlayer.seekTo(0, true); ytPlayer.playVideo(); }
+      setPlaying(true);
+      return;
+    }
+    if(!shuffle && repeatMode === 'off' && current === tracks.length - 1){
+      // Reached the end of the playlist with nothing set to loop — stop
+      elapsed = 0;
+      updateProgress();
+      setPlaying(false);
+      return;
+    }
+    nextTrack();
+  }
 
   const record = document.getElementById('record');
   const tonearm = document.getElementById('tonearm');
@@ -698,10 +759,35 @@
     curTimeEl.textContent = fmt(elapsed);
   }
 
-  function nextTrack(){
-    loadTrack((current + 1) % tracks.length, true);
+  function randomIndexExcluding(exclude){
+    if(tracks.length <= 1) return 0;
+    let i;
+    do{ i = Math.floor(Math.random() * tracks.length); } while(i === exclude);
+    return i;
   }
+
+  function nextTrack(){
+    if(tracks.length === 0) return;
+    history.push(current);
+    let nextIndex;
+    if(shuffle){
+      nextIndex = randomIndexExcluding(current);
+    } else {
+      nextIndex = current + 1;
+      if(nextIndex >= tracks.length){
+        nextIndex = 0; // wraps; handleTrackEnded() already decides whether we should have gotten here
+      }
+    }
+    loadTrack(nextIndex, true);
+  }
+
   function prevTrack(){
+    if(tracks.length === 0) return;
+    if(shuffle && history.length){
+      const prevIndex = history.pop();
+      loadTrack(prevIndex, true);
+      return;
+    }
     loadTrack((current - 1 + tracks.length) % tracks.length, true);
   }
 
@@ -737,6 +823,37 @@
   document.getElementById('sidebarClose').addEventListener('click', closeSidebar);
   sidebarOverlay.addEventListener('click', closeSidebar);
   document.addEventListener('keydown', (e) => { if(e.key === 'Escape') closeSidebar(); });
+
+  const shuffleBtn = document.getElementById('shuffleBtn');
+  const repeatBtn = document.getElementById('repeatBtn');
+  const repeatOneDot = document.getElementById('repeatOneDot');
+
+  function updateShuffleUI(){
+    shuffleBtn.classList.toggle('active', shuffle);
+  }
+  function updateRepeatUI(){
+    repeatBtn.classList.toggle('active', repeatMode !== 'off');
+    repeatOneDot.classList.toggle('show', repeatMode === 'one');
+    repeatBtn.title = repeatMode === 'off' ? 'Repeat off'
+                     : repeatMode === 'all' ? 'Repeat playlist'
+                     : 'Repeat one song';
+  }
+
+  shuffleBtn.addEventListener('click', () => {
+    shuffle = !shuffle;
+    history = [];
+    localStorage.setItem('spindle_shuffle', shuffle ? '1' : '0');
+    updateShuffleUI();
+  });
+
+  repeatBtn.addEventListener('click', () => {
+    repeatMode = repeatMode === 'off' ? 'all' : repeatMode === 'all' ? 'one' : 'off';
+    localStorage.setItem('spindle_repeat', repeatMode);
+    updateRepeatUI();
+  });
+
+  updateShuffleUI();
+  updateRepeatUI();
 
   trackTitle.textContent = tracks[0].title;
   trackArtist.textContent = tracks[0].artist;
