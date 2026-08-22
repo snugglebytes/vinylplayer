@@ -1595,20 +1595,25 @@
       shell.style.transform = 'translateX(0px)';
       return;
     }
-    // Measure at rest, then shift by only the amount the ext panel actually
-    // overlaps the console — if there's already enough room, this is 0.
+    // Measure the ext panel's fully-open resting position instantly (skip
+    // its own 0.3s slide-in transition for this read) so the shell can
+    // start shifting in the same frame the panel starts opening, rather
+    // than waiting for the panel to finish sliding and jumping late.
+    const extPrevTransition = sidebarExt.style.transition;
+    sidebarExt.style.transition = 'none';
+    const extRect = sidebarExt.getBoundingClientRect();
+    sidebarExt.style.transition = extPrevTransition;
+    void sidebarExt.offsetWidth; // flush so the restored transition applies to future toggles
+
+    // Measure the shell at rest, then shift by only the amount the ext
+    // panel actually overlaps it — if there's already enough room, this is 0.
     shell.style.transform = 'translateX(0px)';
     const shellRect = shell.getBoundingClientRect();
-    const extRect = sidebarExt.getBoundingClientRect();
     const overlap = Math.ceil(extRect.right - shellRect.left) + 16; // small breathing gap
     shell.style.transform = overlap > 16 ? `translateX(${overlap}px)` : 'translateX(0px)';
   }
-  // The sidebar panels animate open over 0.3s, so their live position mid-slide
-  // isn't the final one — recompute once they've settled, in addition to an
-  // immediate best-effort pass.
   function scheduleShellShift(){
     updateShellShift();
-    setTimeout(updateShellShift, 320);
   }
   window.addEventListener('resize', updateShellShift);
 
@@ -1631,6 +1636,11 @@
     scheduleShellShift();
   }
   function openExtPanel(view){
+    // Only the transition from closed -> open actually moves the panel
+    // (and therefore the console). Switching views while it's already
+    // open just swaps its content in place, so skip re-shifting the
+    // shell/vinyl for those clicks.
+    const wasAlreadyOpen = document.body.classList.contains('ext-open');
     extView = view;
     sidebarExt.classList.add('open');
     document.body.classList.add('ext-open');
@@ -1672,7 +1682,9 @@
     }
     renderPlaylistNav();
     renderCrate();
-    scheduleShellShift();
+    if(!wasAlreadyOpen){
+      scheduleShellShift();
+    }
   }
   function closeExtPanel(){
     sidebarExt.classList.remove('open');
