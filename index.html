@@ -272,7 +272,7 @@
     z-index: 10;
     pointer-events:none;
   }
-  .tonearm.playing{ transform: rotate(2deg); }
+  .tonearm.playing{ transform: rotate(15deg); }
 
   .arm-counterweight{
     position:absolute; top:-4%; right:2%;
@@ -420,37 +420,31 @@
   }
   .sidebar.open{ transform: translateX(0); }
 
-  /* ---- Now Playing sidebar (right side) — same mechanism as the Library sidebar,
-     except it also auto-opens whenever playback starts and has no dimming overlay,
-     so it can stay visible without blocking the rest of the console. ---- */
-  .now-playing-sidebar{
-    position: fixed;
-    top: 0; right: 0;
-    height: 100%;
-    width: min(300px, 82vw);
-    background: linear-gradient(170deg, var(--walnut-light), var(--walnut-dark));
-    box-shadow: -8px 0 30px rgba(0,0,0,0.5);
-    transform: translateX(100%);
-    transition: transform 0.3s cubic-bezier(.65,0,.35,1);
-    z-index: 45;
-    padding: 22px 18px;
-    display: flex;
-    flex-direction: column;
-    border-left: 1px solid rgba(201,154,84,0.2);
+  /* ---- Now Playing panel — embedded directly into the console surface,
+     recessed like it's carved into the wood, rather than a sliding sidebar. ---- */
+  .upnext-panel{
+    width: 100%;
+    max-width: 380px;
+    margin: 22px auto 0;
+    padding: 14px 14px 10px;
+    border-radius: 12px;
+    background: linear-gradient(160deg, rgba(0,0,0,0.28), rgba(0,0,0,0.12));
+    box-shadow: inset 0 2px 6px rgba(0,0,0,0.55), inset 0 -1px 0 rgba(255,255,255,0.03), 0 1px 0 rgba(255,255,255,0.02);
   }
-  .now-playing-sidebar.open{ transform: translateX(0); }
 
   .now-playing-head{
     display:flex; align-items:center; justify-content:space-between;
-    margin-bottom: 18px;
-    padding-bottom: 14px;
-    border-bottom: 1px solid rgba(201,154,84,0.2);
+    margin-bottom: 10px;
   }
   .now-playing-title{
     font-family:'Fraunces', serif;
     font-weight: 700;
-    font-size: 18px;
+    font-size: 13px;
     color: var(--brass-bright);
+  }
+
+  .upnext-panel .upnext-list{
+    max-height: 220px;
   }
 
   .sidebar-head{
@@ -691,6 +685,28 @@
   .track-meta .t{ font-size:12.5px; color:var(--cream); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .track-meta .a{ font-size:10px; color:rgba(244,234,217,0.5); }
 
+  /* ---- Album list row (art thumbnail on the right) ---- */
+  .album-row{
+    display:flex; align-items:center; gap:10px;
+    padding: 9px 8px;
+    border-radius: 8px;
+    cursor:pointer;
+    transition: background 0.15s ease;
+  }
+  .album-row:hover{ background: rgba(244,234,217,0.06); }
+  .album-meta{ flex:1; min-width:0; }
+  .album-meta .t{ font-size:12.5px; color:var(--cream); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .album-meta .a{ font-size:10px; color:rgba(244,234,217,0.5); }
+  .album-art-thumb{
+    width:32px; height:32px; border-radius:6px; flex-shrink:0;
+    background: repeating-radial-gradient(circle, #0b0b0c 0 1px, #1c1c1c 1.5px 2px);
+    background-size: cover;
+    background-position: center;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.06);
+  }
+  .album-row .icon-btn{ opacity: 0; }
+  .album-row:hover .icon-btn{ opacity: 1; }
+
   .track-actions{
     display:flex; align-items:center; gap:2px; flex-shrink:0;
   }
@@ -877,9 +893,6 @@
     <div class="brand">Spindle</div>
     <div class="header-right">
       <div class="badge">33⅓ rpm</div>
-      <button class="menu-btn" id="queueBtn" title="Now playing">
-        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 6h11M4 12h11M4 18h7"/><circle cx="19" cy="16" r="2.5" fill="currentColor" stroke="none"/><path d="M21.5 16V6l-4 1.2"/></svg>
-      </button>
     </div>
   </header>
 
@@ -935,23 +948,20 @@
           <span class="repeat-one-dot" id="repeatOneDot">1</span>
         </button>
       </div>
+
+      <div class="upnext-panel">
+        <div class="now-playing-head">
+          <div class="now-playing-title">Up Next</div>
+        </div>
+        <div class="upnext-label" id="upnextLabel">Up next</div>
+        <div class="upnext-list" id="upnextList"></div>
+      </div>
     </div>
   </div>
 </div>
 
 <!-- Hidden YouTube player: provides real audio -->
 <div id="ytPlayer" style="position:absolute; width:1px; height:1px; overflow:hidden; opacity:0;"></div>
-
-<aside class="now-playing-sidebar" id="nowPlayingSidebar">
-  <div class="now-playing-head">
-    <div class="now-playing-title">Now Playing</div>
-    <button class="sidebar-close" id="nowPlayingClose" title="Close">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
-    </button>
-  </div>
-  <div class="upnext-label" id="upnextLabel">Up next</div>
-  <div class="upnext-list" id="upnextList"></div>
-</aside>
 
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -968,9 +978,11 @@
       <span>All Songs</span>
       <span class="count" id="allSongsCount">0</span>
     </div>
-    <div class="nav-divider"></div>
-    <div class="nav-section-label" id="albumsSectionLabel" style="display:none;">Albums</div>
-    <div id="albumNavList"></div>
+    <div class="nav-item" id="navAlbums">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="2.5"/></svg>
+      <span>Albums</span>
+      <span class="count" id="albumsCount">0</span>
+    </div>
     <div class="nav-divider" id="playlistsDivider"></div>
     <div id="playlistNavList"></div>
     <button class="new-playlist-btn" id="newPlaylistBtn">
@@ -1038,6 +1050,39 @@
     <div class="edit-modal-actions">
       <button class="edit-cancel-btn" id="editCancelBtn">Cancel</button>
       <button class="edit-save-btn" id="editSaveBtn">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="albumEditOverlay">
+  <div class="edit-modal">
+    <div class="edit-modal-head">
+      <div class="edit-modal-title">Edit album</div>
+      <button class="sidebar-close" id="albumEditCloseX" title="Close">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+    <div class="edit-field">
+      <label for="albumEditNameInput">Album name</label>
+      <input type="text" id="albumEditNameInput" placeholder="Album name">
+    </div>
+    <div class="edit-field">
+      <label for="albumEditArtistInput">Artist</label>
+      <input type="text" id="albumEditArtistInput" placeholder="Artist name">
+    </div>
+    <div class="edit-field">
+      <label>Album art</label>
+      <div class="edit-art-row">
+        <div class="edit-art-preview" id="albumEditArtPreview"></div>
+        <div class="edit-art-inputs">
+          <input type="text" id="albumEditArtUrlInput" placeholder="Paste image URL…">
+          <input type="file" id="albumEditArtFileInput" accept="image/*">
+        </div>
+      </div>
+    </div>
+    <div class="edit-modal-actions">
+      <button class="edit-cancel-btn" id="albumEditCancelBtn">Cancel</button>
+      <button class="edit-save-btn" id="albumEditSaveBtn">Save</button>
     </div>
   </div>
 </div>
@@ -1208,40 +1253,37 @@
 
   let extView = null; // null | 'all' | playlistId
 
-  const albumNavList = document.getElementById('albumNavList');
-  const albumsSectionLabel = document.getElementById('albumsSectionLabel');
+  const navAlbums = document.getElementById('navAlbums');
+  const albumsCount = document.getElementById('albumsCount');
   const playlistsDivider = document.getElementById('playlistsDivider');
 
+  // Albums are grouped by album name + artist together, so two different
+  // artists who happen to share an album name don't get merged into one.
+  function albumKey(album, artist){
+    return normKey(album) + '|||' + normKey(cleanArtist(artist));
+  }
   function getAlbums(){
     const map = new Map();
     tracks.forEach(t => {
       const name = (t.album || '').trim();
       if(!name) return;
-      if(!map.has(name)) map.set(name, []);
-      map.get(name).push(t);
+      const key = albumKey(t.album, t.artist);
+      if(!map.has(key)) map.set(key, { key, name, artist: cleanArtist(t.artist), tracks: [] });
+      map.get(key).tracks.push(t);
     });
-    return Array.from(map.entries()).map(([name, list]) => ({ name, tracks: list }))
-      .sort((a,b) => a.name.localeCompare(b.name));
+    return Array.from(map.values()).sort((a,b) => a.name.localeCompare(b.name));
+  }
+  function albumArtFor(al){
+    const withArt = al.tracks.find(t => t.art);
+    return withArt ? withArt.art : '';
   }
 
   function renderPlaylistNav(){
     allSongsCount.textContent = tracks.length;
 
     const albums = getAlbums();
-    albumsSectionLabel.style.display = albums.length ? 'block' : 'none';
-    playlistsDivider.style.display = albums.length ? 'block' : 'none';
-    albumNavList.innerHTML = '';
-    albums.forEach(al => {
-      const row = document.createElement('div');
-      row.className = 'nav-item' + (extView === 'album:' + al.name ? ' active' : '');
-      row.innerHTML = `
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/><circle cx="12" cy="12" r="2.5"/></svg>
-        <span>${escapeHtml(al.name)}</span>
-        <span class="count">${al.tracks.length}</span>
-      `;
-      row.addEventListener('click', () => openExtPanel('album:' + al.name));
-      albumNavList.appendChild(row);
-    });
+    albumsCount.textContent = albums.length;
+    navAlbums.classList.toggle('active', extView === 'albums' || (extView && extView.startsWith('album:')));
 
     playlistNavList.innerHTML = '';
     playlists.forEach(pl => {
@@ -1276,8 +1318,13 @@
       extTitle.textContent = 'All Songs';
       extAddRow.style.display = 'flex';
       sortBtn.style.display = 'flex';
+    } else if(view === 'albums'){
+      extTitle.textContent = 'Albums';
+      extAddRow.style.display = 'none';
+      sortBtn.style.display = 'none';
     } else if(view.startsWith('album:')){
-      extTitle.textContent = view.slice('album:'.length);
+      const al = getAlbums().find(a => a.key === view.slice('album:'.length));
+      extTitle.textContent = al ? al.name : 'Album';
       extAddRow.style.display = 'none';
       sortBtn.style.display = 'none';
     } else {
@@ -1300,24 +1347,9 @@
   document.getElementById('extClose').addEventListener('click', closeSidebar);
   document.getElementById('extBack').addEventListener('click', closeExtPanel);
   sidebarOverlay.addEventListener('click', closeSidebar);
-  document.addEventListener('keydown', (e) => { if(e.key === 'Escape'){ closeSidebar(); closeNowPlaying(); } });
+  document.addEventListener('keydown', (e) => { if(e.key === 'Escape'){ closeSidebar(); } });
   navAllSongs.addEventListener('click', () => openExtPanel('all'));
-
-  // ---------- Now Playing sidebar (right side) ----------
-  const nowPlayingSidebar = document.getElementById('nowPlayingSidebar');
-  const queueBtn = document.getElementById('queueBtn');
-  function openNowPlaying(){
-    nowPlayingSidebar.classList.add('open');
-    queueBtn.classList.add('active');
-  }
-  function closeNowPlaying(){
-    nowPlayingSidebar.classList.remove('open');
-    queueBtn.classList.remove('active');
-  }
-  queueBtn.addEventListener('click', () => {
-    nowPlayingSidebar.classList.contains('open') ? closeNowPlaying() : openNowPlaying();
-  });
-  document.getElementById('nowPlayingClose').addEventListener('click', closeNowPlaying);
+  navAlbums.addEventListener('click', () => openExtPanel('albums'));
 
   document.getElementById('newPlaylistBtn').addEventListener('click', () => {
     const name = prompt('Name your playlist:');
@@ -1332,9 +1364,10 @@
   // ---------- Crate (track list inside extended panel) ----------
   function currentExtTracks(){
     if(extView === 'all') return tracks;
+    if(extView === 'albums') return [];
     if(extView && extView.startsWith('album:')){
-      const name = extView.slice('album:'.length);
-      return tracks.filter(t => (t.album || '').trim() === name);
+      const key = extView.slice('album:'.length);
+      return tracks.filter(t => (t.album || '').trim() && albumKey(t.album, t.artist) === key);
     }
     const pl = playlists.find(p => p.id === extView);
     if(!pl) return [];
@@ -1380,8 +1413,39 @@
     container.appendChild(row);
   }
 
+  function renderAlbumRow(al, container){
+    const row = document.createElement('div');
+    row.className = 'album-row';
+    const art = albumArtFor(al);
+    row.innerHTML = `
+      <div class="album-meta">
+        <div class="t">${escapeHtml(al.name)}</div>
+        <div class="a">${escapeHtml(al.artist)}${al.artist ? ' · ' : ''}${al.tracks.length} song${al.tracks.length === 1 ? '' : 's'}</div>
+      </div>
+      <button class="icon-btn album-edit-btn" title="Edit album">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+      </button>
+      <div class="album-art-thumb"${art ? ` style="background-image:url('${art}')"` : ''}></div>
+    `;
+    row.querySelector('.album-meta').addEventListener('click', () => openExtPanel('album:' + al.key));
+    row.querySelector('.album-art-thumb').addEventListener('click', () => openExtPanel('album:' + al.key));
+    row.querySelector('.album-edit-btn').addEventListener('click', (e) => { e.stopPropagation(); openAlbumEditModal(al.key); });
+    container.appendChild(row);
+  }
+
   function renderCrate(){
     crate.innerHTML = '';
+
+    if(extView === 'albums'){
+      const albums = getAlbums();
+      if(albums.length === 0){
+        crate.innerHTML = '<div class="crate-empty">No albums yet. Tag a song with an album (or edit one) to see it here.</div>';
+        return;
+      }
+      albums.forEach(al => renderAlbumRow(al, crate));
+      return;
+    }
+
     const list = currentExtTracks();
     if(list.length === 0){
       crate.innerHTML = '<div class="crate-empty">' +
@@ -1531,12 +1595,18 @@
     fetchTitleFor(newTrack);
   }
 
+  // Note: there's no public, key-free YT Music metadata API we can call from
+  // the browser, so this pulls title/artist/art from YouTube's oEmbed endpoint
+  // (the same info YT Music itself is generated from — usually the channel
+  // name and thumbnail of the official upload). It's a good starting guess,
+  // not guaranteed to match, so every field can be fixed via Edit afterward.
   function fetchTitleFor(track){
     fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${track.videoId}&format=json`)
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(data => {
         track.title = data.title || track.title;
         track.artist = cleanArtist(data.author_name || track.artist);
+        if(!track.art && data.thumbnail_url) track.art = data.thumbnail_url;
         // Same song already imported under a different video link
         const dupe = findDuplicateTrack(track.title, track.artist, track.id);
         if(dupe){
@@ -1612,7 +1682,7 @@
       : '<path d="M8 5v14l11-7z"/>';
     if(ytReady){ playing ? ytPlayer.playVideo() : ytPlayer.pauseVideo(); }
     clearInterval(timer);
-    if(playing){ timer = setInterval(tick, 500); openNowPlaying(); }
+    if(playing){ timer = setInterval(tick, 500); }
     renderUpNext();
   }
 
@@ -1770,6 +1840,88 @@
   document.getElementById('editCancelBtn').addEventListener('click', closeEditModal);
   document.getElementById('editCloseX').addEventListener('click', closeEditModal);
   editOverlay.addEventListener('click', (e) => { if(e.target === editOverlay) closeEditModal(); });
+
+  // ---------- Edit album modal ----------
+  // Editing an album applies the name/artist/art change to every track that
+  // currently shares this album's (name + artist) key — that's what keeps
+  // "same album, same artist" songs grouped, and lets one art upload cover
+  // the whole album at once.
+  const albumEditOverlay = document.getElementById('albumEditOverlay');
+  const albumEditNameInput = document.getElementById('albumEditNameInput');
+  const albumEditArtistInput = document.getElementById('albumEditArtistInput');
+  const albumEditArtUrlInput = document.getElementById('albumEditArtUrlInput');
+  const albumEditArtFileInput = document.getElementById('albumEditArtFileInput');
+  const albumEditArtPreview = document.getElementById('albumEditArtPreview');
+  let editingAlbumKey = null;
+  let editingAlbumArtData = '';
+
+  function updateAlbumEditArtPreview(src){
+    albumEditArtPreview.style.backgroundImage = src ? `url("${src}")` : 'none';
+  }
+
+  function openAlbumEditModal(key){
+    const al = getAlbums().find(a => a.key === key);
+    if(!al) return;
+    editingAlbumKey = key;
+    const art = albumArtFor(al);
+    editingAlbumArtData = art.startsWith('data:') ? art : '';
+    albumEditNameInput.value = al.name;
+    albumEditArtistInput.value = al.artist;
+    albumEditArtUrlInput.value = (art && !art.startsWith('data:')) ? art : '';
+    albumEditArtFileInput.value = '';
+    updateAlbumEditArtPreview(art);
+    albumEditOverlay.classList.add('show');
+  }
+  function closeAlbumEditModal(){
+    albumEditOverlay.classList.remove('show');
+    editingAlbumKey = null;
+    editingAlbumArtData = '';
+  }
+
+  albumEditArtUrlInput.addEventListener('input', () => {
+    editingAlbumArtData = '';
+    updateAlbumEditArtPreview(albumEditArtUrlInput.value.trim());
+  });
+  albumEditArtFileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      editingAlbumArtData = reader.result;
+      albumEditArtUrlInput.value = '';
+      updateAlbumEditArtPreview(editingAlbumArtData);
+    };
+    reader.readAsDataURL(file);
+  });
+
+  document.getElementById('albumEditSaveBtn').addEventListener('click', () => {
+    if(!editingAlbumKey) return;
+    const newName = albumEditNameInput.value.trim();
+    if(!newName) return;
+    const newArtist = albumEditArtistInput.value.trim();
+    const urlArt = albumEditArtUrlInput.value.trim();
+    const newArt = editingAlbumArtData || urlArt || '';
+    const affected = tracks.filter(t => (t.album || '').trim() && albumKey(t.album, t.artist) === editingAlbumKey);
+    affected.forEach(t => {
+      t.album = newName;
+      if(newArtist) t.artist = newArtist;
+      if(newArt) t.art = newArt;
+    });
+    saveTracks();
+    renderCrate(); renderPlaylistNav(); renderUpNext();
+    if(queue[current] && affected.some(t => t.id === queue[current].id)){
+      const t = queue[current];
+      trackTitle.textContent = t.title;
+      trackArtist.textContent = cleanArtist(t.artist);
+      labelTitle.textContent = t.title;
+      recordArt.style.backgroundImage = t.art ? `url("${t.art}")` : 'none';
+    }
+    closeAlbumEditModal();
+    openExtPanel('albums');
+  });
+  document.getElementById('albumEditCancelBtn').addEventListener('click', closeAlbumEditModal);
+  document.getElementById('albumEditCloseX').addEventListener('click', closeAlbumEditModal);
+  albumEditOverlay.addEventListener('click', (e) => { if(e.target === albumEditOverlay) closeAlbumEditModal(); });
 
   // ---------- Init ----------
   updateShuffleUI();
