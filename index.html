@@ -90,7 +90,11 @@
     font-size: 22px;
     letter-spacing: 0.5px;
     color: var(--brass-bright);
+    cursor: pointer;
+    transition: opacity 0.15s ease;
   }
+  .brand:hover{ opacity: 0.8; }
+  .brand:active{ opacity: 0.6; }
   .brand span{ color: var(--cream); font-weight:400; opacity:0.7; }
 
   .badge{
@@ -1035,7 +1039,7 @@
     <button class="menu-btn" id="menuBtn" title="Menu">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
     </button>
-    <div class="brand">Spindle</div>
+    <div class="brand" id="brandBtn" title="Shuffle all songs">Spindle</div>
     <div class="header-right">
       <div class="badge">33⅓ rpm</div>
     </div>
@@ -2403,6 +2407,19 @@
     repeatMode = repeatMode === 'off' ? 'all' : repeatMode === 'all' ? 'one' : 'off';
     localStorage.setItem('spindle_repeat', repeatMode);
     updateRepeatUI();
+  });
+
+  // ---------- Brand click: shuffle-play everything ----------
+  document.getElementById('brandBtn').addEventListener('click', () => {
+    if(tracks.length === 0) return;
+    shuffle = true;
+    localStorage.setItem('spindle_shuffle', '1');
+    updateShuffleUI();
+    queue = tracks.slice();
+    queueLabel = 'All Songs';
+    current = Math.floor(Math.random() * queue.length);
+    navHistory = [];
+    loadCurrent(true);
   });
 
   // ---------- Edit song modal ----------
