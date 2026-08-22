@@ -473,14 +473,11 @@
   }
   .sidebar-overlay.open{ opacity: 1; pointer-events: auto; }
 
-  /* Shift the console out from under the sidebar(s) instead of darkening the
-     screen, so the vinyl is never hidden behind the panel. */
-  body.sidebar-open .app-shell{
-    transform: translateX(min(300px, 82vw));
-  }
-  body.ext-open .app-shell{
-    transform: translateX(min(640px, 92vw));
-  }
+  /* The nav sidebar alone never shifts the console — the vinyl panel stays
+     centered. Only the extended song-list panel (which sits further right
+     and is more likely to reach the console) nudges it over, and only by
+     the exact amount needed to clear it — computed in JS so most of the
+     time, when there's already enough room, nothing moves at all. */
   .app-shell{
     transition: transform 0.3s cubic-bezier(.65,0,.35,1);
   }
@@ -1384,7 +1381,11 @@
 
   function syncVolumeRowWidth(){
     if(!controlsRow || !volumeRow) return;
-    const w = controlsRow.getBoundingClientRect().width;
+    const buttons = controlsRow.querySelectorAll('.ctrl-btn');
+    if(!buttons.length) return;
+    const first = buttons[0].getBoundingClientRect();
+    const last = buttons[buttons.length - 1].getBoundingClientRect();
+    const w = last.right - first.left;
     if(w > 0) volumeRow.style.maxWidth = w + 'px';
   }
   window.addEventListener('resize', syncVolumeRowWidth);
@@ -1587,10 +1588,35 @@
     navAllSongs.classList.toggle('active', extView === 'all');
   }
 
+  function updateShellShift(){
+    const shell = document.querySelector('.app-shell');
+    if(!shell) return;
+    if(!document.body.classList.contains('ext-open')){
+      shell.style.transform = 'translateX(0px)';
+      return;
+    }
+    // Measure at rest, then shift by only the amount the ext panel actually
+    // overlaps the console — if there's already enough room, this is 0.
+    shell.style.transform = 'translateX(0px)';
+    const shellRect = shell.getBoundingClientRect();
+    const extRect = sidebarExt.getBoundingClientRect();
+    const overlap = Math.ceil(extRect.right - shellRect.left) + 16; // small breathing gap
+    shell.style.transform = overlap > 16 ? `translateX(${overlap}px)` : 'translateX(0px)';
+  }
+  // The sidebar panels animate open over 0.3s, so their live position mid-slide
+  // isn't the final one — recompute once they've settled, in addition to an
+  // immediate best-effort pass.
+  function scheduleShellShift(){
+    updateShellShift();
+    setTimeout(updateShellShift, 320);
+  }
+  window.addEventListener('resize', updateShellShift);
+
   function openSidebar(){
     sidebar.classList.add('open');
     sidebarOverlay.classList.add('open');
     document.body.classList.add('sidebar-open');
+    scheduleShellShift();
   }
   function closeSidebar(){
     sidebar.classList.remove('open');
@@ -1602,6 +1628,7 @@
     extSearchTerm = '';
     extSearchInput.value = '';
     renderPlaylistNav();
+    scheduleShellShift();
   }
   function openExtPanel(view){
     extView = view;
@@ -1645,6 +1672,7 @@
     }
     renderPlaylistNav();
     renderCrate();
+    scheduleShellShift();
   }
   function closeExtPanel(){
     sidebarExt.classList.remove('open');
@@ -1653,6 +1681,7 @@
     extSearchTerm = '';
     extSearchInput.value = '';
     renderPlaylistNav();
+    scheduleShellShift();
   }
 
   document.getElementById('menuBtn').addEventListener('click', openSidebar);
@@ -2019,6 +2048,23 @@
     fetchTitleFor(newTrack);
   }
 
+  // YouTube's oEmbed thumbnail is usually the 4:3 hqdefault crop, which pads
+  // 16:9 sources with black bars top/bottom — those bars survive a CSS
+  // "cover" crop into a square since only the sides get cut. maxresdefault
+  // is the raw 16:9 frame with no bars, so prefer it and only fall back
+  // when it doesn't exist (YouTube serves a tiny grey placeholder for those).
+  function fetchBestThumbnail(videoId){
+    return new Promise((resolve) => {
+      const maxres = `https://img.youtube.com/vi/${videoId}/maxresdefault.jpg`;
+      const probe = new Image();
+      probe.onload = () => {
+        resolve(probe.naturalWidth > 120 ? maxres : `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`);
+      };
+      probe.onerror = () => resolve(`https://img.youtube.com/vi/${videoId}/hqdefault.jpg`);
+      probe.src = maxres;
+    });
+  }
+
   // Note: there's no public, key-free YT Music metadata API we can call from
   // the browser, so this pulls title/artist/art from YouTube's oEmbed endpoint
   // (the same info YT Music itself is generated from — usually the channel
@@ -2030,7 +2076,12 @@
       .then(data => {
         track.title = data.title || track.title;
         track.artist = cleanArtist(data.author_name || track.artist);
-        if(!track.art && data.thumbnail_url) track.art = data.thumbnail_url;
+        const artPromise = track.art ? Promise.resolve(track.art) : fetchBestThumbnail(track.videoId);
+        return artPromise.then((artUrl) => {
+          if(!track.art) track.art = artUrl;
+        });
+      })
+      .then(() => {
         // Same song already imported under a different video link
         const dupe = findDuplicateTrack(track.title, track.artist, track.id);
         if(dupe){
