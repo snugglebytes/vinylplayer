@@ -845,6 +845,19 @@
   .track-row:hover .track-drag-handle{ opacity: 1; }
   .track-row.dragging .track-drag-handle{ cursor: grabbing; }
 
+  /* ---- Playlist suggestions (bottom of a playlist's track list) ---- */
+  .suggestions-header{
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: rgba(244,234,217,0.4);
+    padding: 16px 8px 6px;
+    margin-top: 6px;
+    border-top: 1px solid rgba(201,154,84,0.15);
+  }
+  .suggestion-row .add-suggestion-btn{ opacity: 0.55; }
+  .suggestion-row:hover .add-suggestion-btn{ opacity: 1; color: var(--brass-bright); }
+
   /* ---- Quick-add-to-playlist popover ---- */
   .playlist-popover{
     position: fixed;
@@ -1881,6 +1894,77 @@
     container.appendChild(row);
   }
 
+  function currentPlaylistView(){
+    if(extView === 'all' || extView === 'albums' || extView === 'artists') return null;
+    if(extView && (extView.startsWith('album:') || extView.startsWith('artist:'))) return null;
+    return playlists.find(p => p.id === extView) || null;
+  }
+
+  // Suggestions for the bottom of an open playlist: other library tracks not
+  // already in it, biased toward artists already in the playlist — like the
+  // "suggested songs" YT Music appends under a playlist.
+  function getPlaylistSuggestions(pl, limit){
+    const existing = new Set(pl.trackIds);
+    const playlistArtists = new Set(
+      pl.trackIds.map(trackById).filter(Boolean).map(t => normKey(cleanArtist(t.artist)))
+    );
+    const candidates = tracks.filter(t => !existing.has(t.id));
+    const scored = candidates.map(t => ({
+      t,
+      score: playlistArtists.has(normKey(cleanArtist(t.artist))) ? 1 : 0
+    }));
+    scored.sort((a, b) => b.score - a.score);
+    return scored.slice(0, limit).map(s => s.t);
+  }
+
+  function playSuggestedTrack(t, suggestions){
+    queue = suggestions.slice();
+    queueLabel = 'Suggested';
+    current = queue.findIndex(x => x.id === t.id);
+    if(current < 0) current = 0;
+    navHistory = [];
+    loadCurrent(true);
+  }
+
+  function renderSuggestionRow(t, container, pl, suggestions){
+    const row = document.createElement('div');
+    row.className = 'track-row suggestion-row';
+    row.innerHTML = `
+      <div class="mini-disc${t.art ? ' has-art' : ''}"${t.art ? ` style="background-image:url('${t.art}')"` : ''}></div>
+      <div class="track-meta">
+        <div class="t">${escapeHtml(t.title)}</div>
+        <div class="a">${escapeHtml(cleanArtist(t.artist))}</div>
+      </div>
+      <div class="track-actions">
+        <button class="icon-btn add-suggestion-btn" title="Add to playlist">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        </button>
+      </div>
+    `;
+    row.querySelector('.track-meta').addEventListener('click', () => playSuggestedTrack(t, suggestions));
+    row.querySelector('.mini-disc').addEventListener('click', () => playSuggestedTrack(t, suggestions));
+    row.querySelector('.add-suggestion-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if(!pl.trackIds.includes(t.id)){
+        pl.trackIds.push(t.id);
+        savePlaylists();
+        renderPlaylistNav();
+        renderCrate();
+      }
+    });
+    container.appendChild(row);
+  }
+
+  function renderSuggestions(pl){
+    const suggestions = getPlaylistSuggestions(pl, 8);
+    if(suggestions.length === 0) return;
+    const header = document.createElement('div');
+    header.className = 'suggestions-header';
+    header.textContent = 'Suggested';
+    crate.appendChild(header);
+    suggestions.forEach(t => renderSuggestionRow(t, crate, pl, suggestions));
+  }
+
   function renderCrate(){
     crate.innerHTML = '';
 
@@ -1914,17 +1998,20 @@
       return;
     }
 
+    const pl = currentPlaylistView();
     const list = visibleTracks();
     if(list.length === 0){
       crate.innerHTML = '<div class="crate-empty">' +
         (extSearchTerm ? 'No songs match your search.' : (extView === 'all' ? 'No songs yet. Paste a YouTube link above to add one.' : 'No songs here yet.')) +
         '</div>';
+      if(pl && !extSearchTerm) renderSuggestions(pl);
       return;
     }
 
     const grouping = (extView === 'all' && sortMode !== 'added');
     if(!grouping){
       list.forEach(t => renderTrackRow(t, crate));
+      if(pl && !extSearchTerm) renderSuggestions(pl);
       return;
     }
 
