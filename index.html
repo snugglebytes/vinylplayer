@@ -217,25 +217,9 @@
     display:flex; align-items:center; justify-content:center;
   }
 
-  /* Album sleeve — a square card resting under/behind the platter, peeking
-     out at an angle like a real flatlay shot, instead of art stretched to
-     fill the whole disc. */
-  .record-art{
-    position:absolute;
-    width: 58%;
-    aspect-ratio: 1/1;
-    top: 4%;
-    left: -9%;
-    border-radius: 7px;
-    background:
-      linear-gradient(155deg, #2c2c2c, #101010 75%);
-    background-size: cover;
-    background-position: center;
-    box-shadow: 0 16px 28px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.06);
-    transform: rotate(-8deg);
-    z-index: 1;
-  }
-
+  /* Album art printed onto the vinyl surface — fills the circular disc
+     (cropped, no letterboxed black edges) with the groove texture
+     multiplied on top so it still reads as ridges pressed into the art. */
   .record{
     position:relative;
     width: 86%;
@@ -247,13 +231,21 @@
     animation-play-state: paused;
     display:flex; align-items:center; justify-content:center;
     z-index: 2;
-    background: radial-gradient(circle at 35% 30%, #262626, #0b0b0c 75%);
   }
 
   .record.spinning{ animation-play-state: running; }
 
-  /* Groove rings — sit directly on the black vinyl surface now that the art
-     lives on the separate sleeve card, so grooves stay crisp on every disc. */
+  .record-art{
+    position:absolute; inset:0;
+    border-radius:50%;
+    background:
+      radial-gradient(circle at 35% 30%, #262626, #0b0b0c 75%);
+    background-size: cover;
+    background-position: center;
+  }
+
+  /* Groove rings — multiplied over the art so ridges stay visible, like the
+     art is printed straight onto the vinyl surface. */
   .record-grooves{
     position:absolute; inset:0;
     border-radius:50%;
@@ -440,7 +432,8 @@
   /* ---- Volume ---- */
   .volume-row{
     display:flex; align-items:center; gap:10px;
-    margin: 14px 0 4px;
+    margin: 14px auto 4px;
+    width: 100%;
   }
   .volume-icon{
     background:none; border:none; cursor:pointer;
@@ -1041,8 +1034,8 @@
   <div class="main-layout">
     <div class="player-col">
       <div class="platter-wrap">
-        <div class="record-art" id="recordArt"></div>
         <div class="record" id="record">
+          <div class="record-art" id="recordArt"></div>
           <div class="record-grooves"></div>
           <div class="label" id="label">
             <svg class="label-svg" viewBox="0 0 100 100">
@@ -1386,6 +1379,16 @@
   const volumeKnob = document.getElementById('volumeKnob');
   const volumeIcon = document.getElementById('volumeIcon');
   const volumeIconSvg = document.getElementById('volumeIconSvg');
+  const controlsRow = document.querySelector('.controls');
+  const volumeRow = document.querySelector('.volume-row');
+
+  function syncVolumeRowWidth(){
+    if(!controlsRow || !volumeRow) return;
+    const w = controlsRow.getBoundingClientRect().width;
+    if(w > 0) volumeRow.style.maxWidth = w + 'px';
+  }
+  window.addEventListener('resize', syncVolumeRowWidth);
+  window.addEventListener('load', syncVolumeRowWidth);
   const upnextLabel = document.getElementById('upnextLabel');
 
   function fmt(s){
@@ -2419,6 +2422,7 @@
   updateLabel(queue[0]);
   recordArt.style.backgroundImage = (queue[0] && queue[0].art) ? `url("${queue[0].art}")` : 'none';
   renderUpNext();
+  syncVolumeRowWidth();
 </script>
 
 </body>
