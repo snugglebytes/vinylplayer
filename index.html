@@ -16,10 +16,10 @@
     --cream: #f4ead9;
     --label-red: #a3312a;
     --label-red-dark: #7c231d;
-    --label-face: #efe4cc;
-    --label-face-dark: #d9c7a0;
-    --label-ink: #40281e;
-    --label-ink-soft: rgba(64,40,30,0.68);
+    --label-face: #e8bd7a;
+    --label-face-dark: #8a6534;
+    --label-ink: #241713;
+    --label-ink-soft: rgba(36,23,19,0.68);
     --shadow: rgba(0,0,0,0.55);
   }
 
@@ -39,9 +39,20 @@
     padding: 32px 16px;
   }
 
+  /* ---- App shell: wood console + the embedded Up Next panel, side by side ---- */
+  .app-shell{
+    display:flex;
+    align-items:flex-start;
+    justify-content:center;
+    gap: 24px;
+    width: 100%;
+    max-width: 1060px;
+  }
+
   .console{
     width: 100%;
     max-width: 760px;
+    flex: 1 1 620px;
     background:
       repeating-linear-gradient(100deg, rgba(0,0,0,0.08) 0 2px, transparent 2px 6px),
       linear-gradient(150deg, var(--walnut-light), var(--walnut) 60%, var(--walnut-dark));
@@ -237,7 +248,7 @@
   .label-svg{
     width:100%; height:100%; display:block; border-radius:50%; overflow:visible;
   }
-  .label-face{ fill:#efe4cc; }
+  .label-face{ fill:#c99a54; }
   .label-face-shade{ fill: url(#labelFaceGrad); }
   .label-hole{ fill: var(--walnut-dark); filter: drop-shadow(0 1px 1px rgba(0,0,0,0.6)); }
   .label-album-text{
@@ -417,31 +428,39 @@
   }
   .sidebar.open{ transform: translateX(0); }
 
-  /* ---- Now Playing panel — embedded directly into the console surface,
-     recessed like it's carved into the wood, rather than a sliding sidebar. ---- */
-  .upnext-panel{
-    width: 100%;
-    max-width: 380px;
-    margin: 22px auto 0;
-    padding: 14px 14px 10px;
-    border-radius: 12px;
-    background: linear-gradient(160deg, rgba(0,0,0,0.28), rgba(0,0,0,0.12));
-    box-shadow: inset 0 2px 6px rgba(0,0,0,0.55), inset 0 -1px 0 rgba(255,255,255,0.03), 0 1px 0 rgba(255,255,255,0.02);
+  /* ---- Now Playing panel — sits to the right of the console, embedded
+     straight into the page background (recessed, not wood-textured), always
+     visible. Not a collapsible sidebar. ---- */
+  .upnext-embed{
+    width: 280px;
+    flex: 0 0 280px;
+    align-self: flex-start;
+    position: sticky;
+    top: 32px;
+    padding: 18px 16px 14px;
+    border-radius: 16px;
+    background:
+      radial-gradient(ellipse at 30% 0%, rgba(60,38,30,0.35) 0%, transparent 60%),
+      linear-gradient(165deg, rgba(0,0,0,0.32), rgba(0,0,0,0.14));
+    box-shadow: inset 0 2px 10px rgba(0,0,0,0.6), inset 0 -1px 0 rgba(255,255,255,0.03);
+    border: 1px solid rgba(201,154,84,0.12);
   }
 
   .now-playing-head{
     display:flex; align-items:center; justify-content:space-between;
-    margin-bottom: 10px;
+    margin-bottom: 14px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid rgba(201,154,84,0.15);
   }
   .now-playing-title{
     font-family:'Fraunces', serif;
     font-weight: 700;
-    font-size: 13px;
+    font-size: 15px;
     color: var(--brass-bright);
   }
 
-  .upnext-panel .upnext-list{
-    max-height: 220px;
+  .upnext-embed .upnext-list{
+    max-height: 60vh;
   }
 
   .sidebar-head{
@@ -888,9 +907,17 @@
     .tonearm{ transition: none; }
   }
 
+  @media (max-width: 900px){
+    .app-shell{ flex-direction: column; align-items: center; }
+    .upnext-embed{
+      width: 100%;
+      max-width: 380px;
+      position: static;
+    }
+  }
+
   @media (max-width: 640px){
     .sidebar-ext{ left: 0; }
-    .now-playing-sidebar{ width: 100%; }
   }
 
   @media (max-width: 420px){
@@ -901,6 +928,7 @@
 </head>
 <body>
 
+<div class="app-shell">
 <div class="console">
   <header>
     <button class="menu-btn" id="menuBtn" title="Menu">
@@ -921,9 +949,10 @@
           <div class="label" id="label">
             <svg class="label-svg" viewBox="0 0 100 100">
               <defs>
-                <radialGradient id="labelFaceGrad" cx="40%" cy="35%" r="75%">
-                  <stop offset="0%" stop-color="#f4ead2"/>
-                  <stop offset="100%" stop-color="#d9c7a0"/>
+                <radialGradient id="labelFaceGrad" cx="35%" cy="30%" r="75%">
+                  <stop offset="0%" stop-color="#e8bd7a"/>
+                  <stop offset="70%" stop-color="#c99a54"/>
+                  <stop offset="100%" stop-color="#8a6534"/>
                 </radialGradient>
                 <path id="labelArcTop" d="M 14.3,37 A 38,38 0 0 1 85.7,37" fill="none"/>
                 <path id="labelArcBottom" d="M 14.3,63 A 38,38 0 0 0 85.7,63" fill="none"/>
@@ -980,16 +1009,18 @@
           <span class="repeat-one-dot" id="repeatOneDot">1</span>
         </button>
       </div>
-
-      <div class="upnext-panel">
-        <div class="now-playing-head">
-          <div class="now-playing-title">Up Next</div>
-        </div>
-        <div class="upnext-label" id="upnextLabel">Up next</div>
-        <div class="upnext-list" id="upnextList"></div>
-      </div>
     </div>
   </div>
+</div>
+
+<aside class="upnext-embed">
+  <div class="now-playing-head">
+    <div class="now-playing-title">Up Next</div>
+  </div>
+  <div class="upnext-label" id="upnextLabel">Up next</div>
+  <div class="upnext-list" id="upnextList"></div>
+</aside>
+
 </div>
 
 <!-- Hidden YouTube player: provides real audio -->
