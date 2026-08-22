@@ -502,6 +502,8 @@
      time, when there's already enough room, nothing moves at all. */
   .app-shell{
     transition: transform 0.3s cubic-bezier(.65,0,.35,1);
+    position: relative;
+    z-index: 41; /* the transform above creates its own stacking context, so this must sit here (not just on children) to beat the sidebar-overlay's z-index: 40 */
   }
 
   .sidebar{
@@ -973,6 +975,55 @@
   }
 
   .edit-field{ margin-bottom: 12px; }
+  .edit-field-row{ display:flex; gap: 10px; margin-bottom: 12px; }
+  .edit-field-row .edit-field{ margin-bottom: 0; }
+  .edit-field-row .edit-field.album-field{ flex: 1 1 auto; min-width: 0; }
+  .edit-field-row .edit-field.track-field{ flex: 0 0 76px; }
+  .edit-field-row .edit-field.track-field input[type="number"]{
+    width: 100%;
+    background: rgba(0,0,0,0.25);
+    border: 1px solid rgba(201,154,84,0.25);
+    border-radius: 8px;
+    padding: 9px 20px 9px 8px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12.5px;
+    color: var(--cream);
+    outline: none;
+    text-align: center;
+    -moz-appearance: textfield;
+  }
+  .edit-field-row .edit-field.track-field input[type="number"]::-webkit-inner-spin-button,
+  .edit-field-row .edit-field.track-field input[type="number"]::-webkit-outer-spin-button{
+    -webkit-appearance: none;
+    margin: 0;
+  }
+  .edit-field-row .edit-field.track-field input[type="number"]:focus{ border-color: var(--brass); }
+  .edit-field-row .edit-field.track-field input[type="number"]::placeholder{ color: rgba(244,234,217,0.35); }
+  .track-number-wrap{ position: relative; }
+  .track-number-stepper{
+    position: absolute;
+    top: 1px; right: 1px; bottom: 1px;
+    width: 18px;
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid rgba(201,154,84,0.25);
+    border-radius: 0 7px 7px 0;
+    overflow: hidden;
+  }
+  .track-step-up, .track-step-down{
+    flex: 1;
+    background: none;
+    border: none;
+    padding: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--brass);
+    cursor: pointer;
+    transition: color 0.15s ease, background 0.15s ease;
+  }
+  .track-step-up:hover, .track-step-down:hover{ color: var(--brass-bright); background: rgba(201,154,84,0.12); }
+  .track-step-up{ border-bottom: 1px solid rgba(201,154,84,0.2); }
   .edit-field label{
     display:block;
     font-size: 9.5px; letter-spacing:1.5px; text-transform:uppercase;
@@ -1271,9 +1322,25 @@
       <label for="editArtistInput">Artist</label>
       <input type="text" id="editArtistInput" placeholder="Artist name">
     </div>
-    <div class="edit-field">
-      <label for="editAlbumInput">Album</label>
-      <input type="text" id="editAlbumInput" placeholder="Album name">
+    <div class="edit-field-row">
+      <div class="edit-field album-field">
+        <label for="editAlbumInput">Album</label>
+        <input type="text" id="editAlbumInput" placeholder="Album name">
+      </div>
+      <div class="edit-field track-field">
+        <label for="editTrackInput" title="Sets the song's position within its album">Track #</label>
+        <div class="track-number-wrap">
+          <input type="number" id="editTrackInput" min="1" step="1" placeholder="—">
+          <div class="track-number-stepper">
+            <button type="button" class="track-step-up" id="trackStepUp" title="Increase" aria-label="Increase track number">
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 15l6-6 6 6"/></svg>
+            </button>
+            <button type="button" class="track-step-down" id="trackStepDown" title="Decrease" aria-label="Decrease track number">
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="edit-field">
       <label>Album art</label>
@@ -1895,7 +1962,18 @@
     if(extView === 'albums' || extView === 'artists') return [];
     if(extView && extView.startsWith('album:')){
       const key = extView.slice('album:'.length);
-      return tracks.filter(t => (t.album || '').trim() && albumKey(t.album, t.artist) === key);
+      const albumTracks = tracks.filter(t => (t.album || '').trim() && albumKey(t.album, t.artist) === key);
+      // Songs with a track number sort by it (ascending); untagged ones fall
+      // back to their added order and sit after any numbered tracks.
+      return albumTracks
+        .map((t, i) => ({ t, i }))
+        .sort((a, b) => {
+          const an = Number.isFinite(a.t.trackNo) ? a.t.trackNo : Infinity;
+          const bn = Number.isFinite(b.t.trackNo) ? b.t.trackNo : Infinity;
+          if(an !== bn) return an - bn;
+          return a.i - b.i;
+        })
+        .map(x => x.t);
     }
     if(extView && extView.startsWith('artist:')){
       const key = extView.slice('artist:'.length);
@@ -2649,6 +2727,18 @@
   const editTitleInput = document.getElementById('editTitleInput');
   const editArtistInput = document.getElementById('editArtistInput');
   const editAlbumInput = document.getElementById('editAlbumInput');
+  const editTrackInput = document.getElementById('editTrackInput');
+  const trackStepUp = document.getElementById('trackStepUp');
+  const trackStepDown = document.getElementById('trackStepDown');
+  trackStepUp.addEventListener('click', () => {
+    const cur = parseInt(editTrackInput.value, 10);
+    editTrackInput.value = Number.isFinite(cur) ? cur + 1 : 1;
+  });
+  trackStepDown.addEventListener('click', () => {
+    const cur = parseInt(editTrackInput.value, 10);
+    const next = Number.isFinite(cur) ? cur - 1 : 1;
+    editTrackInput.value = next > 0 ? next : 1;
+  });
   const editArtUrlInput = document.getElementById('editArtUrlInput');
   const editArtFileInput = document.getElementById('editArtFileInput');
   const editArtPreview = document.getElementById('editArtPreview');
@@ -2667,6 +2757,7 @@
     editTitleInput.value = t.title || '';
     editArtistInput.value = cleanArtist(t.artist);
     editAlbumInput.value = t.album || '';
+    editTrackInput.value = Number.isFinite(t.trackNo) ? t.trackNo : '';
     editArtUrlInput.value = (t.art && !t.art.startsWith('data:')) ? t.art : '';
     editArtFileInput.value = '';
     updateEditArtPreview(t.art || '');
@@ -2700,6 +2791,9 @@
     t.title = editTitleInput.value.trim() || t.title;
     t.artist = cleanArtist(editArtistInput.value.trim());
     t.album = editAlbumInput.value.trim();
+    const trackNoRaw = editTrackInput.value.trim();
+    const trackNoNum = trackNoRaw === '' ? NaN : parseInt(trackNoRaw, 10);
+    t.trackNo = Number.isFinite(trackNoNum) && trackNoNum > 0 ? trackNoNum : null;
     const urlArt = editArtUrlInput.value.trim();
     t.art = editingArtData || urlArt || '';
     saveTracks();
