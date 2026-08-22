@@ -142,9 +142,24 @@
   .upnext-list{
     display:flex; flex-direction:column; gap:2px;
     overflow-y:auto;
+    position: relative;
   }
   .upnext-list::-webkit-scrollbar{ width:6px; }
   .upnext-list::-webkit-scrollbar-thumb{ background: rgba(201,154,84,0.3); border-radius:3px; }
+
+  /* Single highlight bar that glides to the now-playing row via transform,
+     instead of toggling a background on/off per row (which reads as a
+     blink since two rows fade at once with nothing tying them together). */
+  .upnext-highlight{
+    position:absolute; left:0; right:0; top:0;
+    background: rgba(201,154,84,0.15);
+    border-radius: 8px;
+    opacity:0;
+    pointer-events:none;
+    z-index:0;
+    transition: transform 0.28s cubic-bezier(.4,0,.2,1), opacity 0.15s ease, height 0.2s ease;
+  }
+  .upnext-highlight.show{ opacity:1; }
 
   .upnext-empty{
     font-size: 11px;
@@ -157,10 +172,11 @@
     padding: 8px 8px;
     border-radius: 8px;
     cursor:pointer;
+    position: relative;
+    z-index: 1;
     transition: background 0.15s ease, opacity 0.15s ease;
   }
   .upnext-row:hover{ background: rgba(244,234,217,0.06); }
-  .upnext-row.now-playing{ background: rgba(201,154,84,0.15); }
   .upnext-row.dragging{ opacity: 0.35; }
   .upnext-row.drag-over{ box-shadow: inset 0 2px 0 0 var(--brass-bright); }
 
@@ -1395,6 +1411,21 @@
   const totalTimeEl = document.getElementById('totalTime');
   const crate = document.getElementById('crate');
   const upnextList = document.getElementById('upnextList');
+  const upnextHighlight = document.createElement('div');
+  upnextHighlight.className = 'upnext-highlight';
+  upnextList.appendChild(upnextHighlight);
+
+  // Glides the highlight bar to sit behind the given row (or hides it when
+  // there's no now-playing row), instead of toggling a background per row.
+  function positionUpNextHighlight(rowEl){
+    if(!rowEl){
+      upnextHighlight.classList.remove('show');
+      return;
+    }
+    upnextHighlight.style.height = rowEl.offsetHeight + 'px';
+    upnextHighlight.style.transform = `translateY(${rowEl.offsetTop}px)`;
+    upnextHighlight.classList.add('show');
+  }
   const volumeTrack = document.getElementById('volumeTrack');
   const volumeFill = document.getElementById('volumeFill');
   const volumeKnob = document.getElementById('volumeKnob');
@@ -1474,12 +1505,14 @@
   // background transition actually animates and nothing else in the list
   // reflows (no more momentary padding/scrollbar jump on every track change).
   function updateNowPlayingHighlight(){
-    const rows = upnextList.children;
+    const rows = upnextList.querySelectorAll('.upnext-row');
     if(rows.length !== queue.length){ renderUpNext(); return; }
+    let currentRow = null;
     for(let i = 0; i < rows.length; i++){
       const row = rows[i];
       const isPlaying = (i === current);
       row.classList.toggle('now-playing', isPlaying);
+      if(isPlaying) currentRow = row;
       const idxCell = row.querySelector('.upnext-idx');
       if(!idxCell) continue;
       if(isPlaying && playing){
@@ -1488,15 +1521,22 @@
         idxCell.textContent = i + 1;
       }
     }
+    positionUpNextHighlight(currentRow);
   }
 
   function renderUpNext(){
     upnextLabel.textContent = (queueLabel === 'All Songs' ? 'Playing from All Songs' : 'Playing from ' + queueLabel);
     upnextList.innerHTML = '';
+    upnextList.appendChild(upnextHighlight);
     if(queue.length === 0){
-      upnextList.innerHTML = '<div class="upnext-empty">Nothing queued. Add songs from the library menu.</div>';
+      upnextHighlight.classList.remove('show');
+      const empty = document.createElement('div');
+      empty.className = 'upnext-empty';
+      empty.textContent = 'Nothing queued. Add songs from the library menu.';
+      upnextList.appendChild(empty);
       return;
     }
+    let currentRow = null;
     queue.forEach((t, i) => {
       const row = document.createElement('div');
       row.className = 'upnext-row' + (i === current ? ' now-playing' : '');
@@ -1547,7 +1587,9 @@
       });
 
       upnextList.appendChild(row);
+      if(i === current) currentRow = row;
     });
+    positionUpNextHighlight(currentRow);
   }
 
   // ---------- Library sidebar (nav) ----------
