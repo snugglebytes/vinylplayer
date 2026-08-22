@@ -165,8 +165,9 @@
   .upnext-row.drag-over{ box-shadow: inset 0 2px 0 0 var(--brass-bright); }
 
   .upnext-idx{
-    width: 16px; flex-shrink:0;
+    width: 16px; height:16px; flex-shrink:0;
     font-size: 10px; color: rgba(244,234,217,0.4);
+    display:flex; align-items:center; justify-content:center;
     text-align:center;
   }
   .upnext-row.now-playing .upnext-idx{ color: var(--brass-bright); }
@@ -1334,7 +1335,7 @@
   if(isNaN(volume)) volume = 80;
   let prevVolume = volume > 0 ? volume : 80;
   let muted = false;
-  let navHistory = [];
+  let preShuffleQueue = null; // snapshot of queue order to restore when shuffle is turned back off
   let sortMode = 'added'; // added | artist | album  (applies to the All Songs view)
 
   function onYouTubeIframeAPIReady(){
@@ -1364,7 +1365,7 @@
       setPlaying(true);
       return;
     }
-    if(!shuffle && repeatMode === 'off' && current === queue.length - 1){
+    if(repeatMode === 'off' && current === queue.length - 1){
       elapsed = 0; updateProgress(); setPlaying(false);
       return;
     }
@@ -1459,6 +1460,28 @@
       if(newIndex !== -1) current = newIndex;
     }
     renderUpNext();
+  }
+
+  // Lightweight update used when only the current index / play-state changes
+  // (not the queue itself) — toggles classes on the existing rows instead of
+  // tearing down and rebuilding the whole list, so the highlight bar's
+  // background transition actually animates and nothing else in the list
+  // reflows (no more momentary padding/scrollbar jump on every track change).
+  function updateNowPlayingHighlight(){
+    const rows = upnextList.children;
+    if(rows.length !== queue.length){ renderUpNext(); return; }
+    for(let i = 0; i < rows.length; i++){
+      const row = rows[i];
+      const isPlaying = (i === current);
+      row.classList.toggle('now-playing', isPlaying);
+      const idxCell = row.querySelector('.upnext-idx');
+      if(!idxCell) continue;
+      if(isPlaying && playing){
+        idxCell.innerHTML = '<div class="eq-bars"><span></span><span></span><span></span></div>';
+      } else {
+        idxCell.textContent = i + 1;
+      }
+    }
   }
 
   function renderUpNext(){
@@ -1921,12 +1944,29 @@
     return scored.slice(0, limit).map(s => s.t);
   }
 
+  function shuffleArray(arr){
+    const a = arr.slice();
+    for(let i = a.length - 1; i > 0; i--){
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  // Point playback at a fresh list. If shuffle is on, the list is shuffled
+  // immediately so the Up Next panel always shows the order that's actually
+  // going to play.
+  function setQueue(list, label){
+    queueLabel = label;
+    preShuffleQueue = null;
+    queue = shuffle ? shuffleArray(list) : list.slice();
+  }
+
   function playSuggestedTrack(t, suggestions){
-    queue = suggestions.slice();
-    queueLabel = 'Suggested';
+    setQueue(suggestions, 'Suggested');
     current = queue.findIndex(x => x.id === t.id);
     if(current < 0) current = 0;
-    navHistory = [];
+    renderUpNext();
     loadCurrent(true);
   }
 
@@ -2039,11 +2079,10 @@
   }
 
   function playFromList(list, trackId){
-    queue = list.slice();
-    queueLabel = extView === 'all' ? 'All Songs' : (playlists.find(p => p.id === extView) || {}).name || 'Playlist';
+    setQueue(list, extView === 'all' ? 'All Songs' : (playlists.find(p => p.id === extView) || {}).name || 'Playlist');
     current = queue.findIndex(t => t.id === trackId);
     if(current < 0) current = 0;
-    navHistory = [];
+    renderUpNext();
     loadCurrent(true);
   }
 
@@ -2243,7 +2282,7 @@
     updateLabel(t);
     recordArt.style.backgroundImage = t.art ? `url("${t.art}")` : 'none';
     renderCrate();
-    renderUpNext();
+    updateNowPlayingHighlight();
     if(ytReady){
       ytPlayer.loadVideoById(t.videoId);
       applyVolume();
@@ -2262,7 +2301,7 @@
     if(ytReady){ playing ? ytPlayer.playVideo() : ytPlayer.pauseVideo(); }
     clearInterval(timer);
     if(playing){ timer = setInterval(tick, 500); }
-    renderUpNext();
+    updateNowPlayingHighlight();
   }
 
   function tick(){
@@ -2280,34 +2319,16 @@
     curTimeEl.textContent = fmt(elapsed);
   }
 
-  function randomIndexExcluding(exclude){
-    if(queue.length <= 1) return 0;
-    let i;
-    do{ i = Math.floor(Math.random() * queue.length); } while(i === exclude);
-    return i;
-  }
-
   function nextTrack(){
     if(queue.length === 0) return;
-    navHistory.push(current);
-    let nextIndex;
-    if(shuffle){
-      nextIndex = randomIndexExcluding(current);
-    } else {
-      nextIndex = current + 1;
-      if(nextIndex >= queue.length) nextIndex = 0;
-    }
+    let nextIndex = current + 1;
+    if(nextIndex >= queue.length) nextIndex = 0;
     current = nextIndex;
     loadCurrent(true);
   }
 
   function prevTrack(){
     if(queue.length === 0) return;
-    if(shuffle && navHistory.length){
-      current = navHistory.pop();
-      loadCurrent(true);
-      return;
-    }
     current = (current - 1 + queue.length) % queue.length;
     loadCurrent(true);
   }
@@ -2399,9 +2420,31 @@
   }
   shuffleBtn.addEventListener('click', () => {
     shuffle = !shuffle;
-    navHistory = [];
     localStorage.setItem('spindle_shuffle', shuffle ? '1' : '0');
+    const playingId = queue[current] ? queue[current].id : null;
+    if(shuffle){
+      // Snapshot the current order so turning shuffle back off restores it,
+      // then shuffle everything except the playing track — which stays put
+      // so nothing jumps mid-song — into a real new queue order you can see.
+      preShuffleQueue = queue.slice();
+      const rest = queue.filter((_, i) => i !== current);
+      const shuffledRest = shuffleArray(rest);
+      const playingTrack = queue[current];
+      queue = [
+        ...shuffledRest.slice(0, current),
+        ...(playingTrack ? [playingTrack] : []),
+        ...shuffledRest.slice(current)
+      ];
+    } else if(preShuffleQueue){
+      queue = preShuffleQueue.slice();
+      preShuffleQueue = null;
+    }
+    if(playingId){
+      const idx = queue.findIndex(t => t.id === playingId);
+      if(idx !== -1) current = idx;
+    }
     updateShuffleUI();
+    renderUpNext();
   });
   repeatBtn.addEventListener('click', () => {
     repeatMode = repeatMode === 'off' ? 'all' : repeatMode === 'all' ? 'one' : 'off';
@@ -2415,10 +2458,9 @@
     shuffle = true;
     localStorage.setItem('spindle_shuffle', '1');
     updateShuffleUI();
-    queue = tracks.slice();
-    queueLabel = 'All Songs';
-    current = Math.floor(Math.random() * queue.length);
-    navHistory = [];
+    setQueue(tracks, 'All Songs');
+    current = 0; // queue is already shuffled, so this lands somewhere new each time
+    renderUpNext();
     loadCurrent(true);
   });
 
@@ -2577,6 +2619,7 @@
   albumEditOverlay.addEventListener('click', (e) => { if(e.target === albumEditOverlay) closeAlbumEditModal(); });
 
   // ---------- Init ----------
+  if(shuffle) queue = shuffleArray(queue); // keep the queue consistent with a persisted shuffle preference
   updateShuffleUI();
   updateRepeatUI();
   updateSortUI();
