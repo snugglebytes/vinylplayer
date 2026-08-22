@@ -149,10 +149,12 @@
     padding: 8px 8px;
     border-radius: 8px;
     cursor:pointer;
-    transition: background 0.15s ease;
+    transition: background 0.15s ease, opacity 0.15s ease;
   }
   .upnext-row:hover{ background: rgba(244,234,217,0.06); }
   .upnext-row.now-playing{ background: rgba(201,154,84,0.15); }
+  .upnext-row.dragging{ opacity: 0.35; }
+  .upnext-row.drag-over{ box-shadow: inset 0 2px 0 0 var(--brass-bright); }
 
   .upnext-idx{
     width: 16px; flex-shrink:0;
@@ -161,9 +163,27 @@
   }
   .upnext-row.now-playing .upnext-idx{ color: var(--brass-bright); }
 
-  .upnext-meta{ min-width:0; flex:1; }
-  .upnext-meta .t{ font-size:12px; color: var(--cream); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .upnext-meta .a{ font-size:9.5px; color: rgba(244,234,217,0.45); }
+  .upnext-meta{ min-width:0; flex:1; text-align:left; }
+  .upnext-meta .t{ font-size:12px; color: var(--cream); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:left; }
+  .upnext-meta .a{ font-size:9.5px; color: rgba(244,234,217,0.45); text-align:left; }
+
+  .upnext-actions{
+    display:flex; align-items:center; gap:2px; flex-shrink:0;
+  }
+  .upnext-row .icon-btn{ opacity: 0; }
+  .upnext-row:hover .icon-btn{ opacity: 1; }
+
+  .upnext-drag-handle{
+    display:flex; align-items:center; justify-content:center;
+    color: rgba(244,234,217,0.3);
+    padding: 4px;
+    opacity: 0;
+    cursor: grab;
+    transition: opacity 0.15s ease, color 0.15s ease;
+  }
+  .upnext-drag-handle:hover{ color: var(--brass-bright); }
+  .upnext-row:hover .upnext-drag-handle{ opacity: 1; }
+  .upnext-row.dragging .upnext-drag-handle{ cursor: grabbing; }
 
   .eq-bars{
     display:flex; align-items:flex-end; gap:2px; height:12px; width:14px; flex-shrink:0;
@@ -399,6 +419,39 @@
     display:flex; align-items:center; justify-content:center;
     box-shadow: 0 6px 14px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.4);
     color: var(--walnut-dark);
+  }
+
+  /* ---- Volume ---- */
+  .volume-row{
+    display:flex; align-items:center; gap:10px;
+    margin: 14px 0 4px;
+  }
+  .volume-icon{
+    background:none; border:none; cursor:pointer;
+    color: rgba(244,234,217,0.6);
+    display:flex; align-items:center; justify-content:center;
+    flex-shrink:0;
+    padding: 2px;
+    transition: color 0.15s ease;
+  }
+  .volume-icon:hover{ color: var(--brass-bright); }
+  .volume-track{
+    flex:1; height: 3px; border-radius: 2px;
+    background: rgba(244,234,217,0.15);
+    position:relative; cursor:pointer;
+  }
+  .volume-fill{
+    position:absolute; left:0; top:0; height:100%;
+    width: 80%;
+    background: linear-gradient(90deg, var(--brass), var(--brass-bright));
+    border-radius: 2px;
+  }
+  .volume-knob{
+    position:absolute; top:50%; width:9px; height:9px; border-radius:50%;
+    background: var(--brass-bright);
+    transform: translate(-50%,-50%);
+    left:80%;
+    box-shadow: 0 0 6px rgba(232,189,122,0.7);
   }
 
   /* ---- Sidebar (library nav) ---- */
@@ -1009,6 +1062,16 @@
           <span class="repeat-one-dot" id="repeatOneDot">1</span>
         </button>
       </div>
+
+      <div class="volume-row">
+        <button class="volume-icon" id="volumeIcon" title="Mute">
+          <svg id="volumeIconSvg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 10v4h4l5 5V5L7 10H3z"/><path d="M16.5 12c0-1.77-1-3.29-2.5-4.03v8.06c1.5-.74 2.5-2.26 2.5-4.03z"/><path d="M14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>
+        </button>
+        <div class="volume-track" id="volumeTrack">
+          <div class="volume-fill" id="volumeFill"></div>
+          <div class="volume-knob" id="volumeKnob"></div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -1215,6 +1278,10 @@
   let ytReady = false;
   let shuffle = (localStorage.getItem('spindle_shuffle') === '1');
   let repeatMode = localStorage.getItem('spindle_repeat') || 'off'; // off | all | one
+  let volume = parseInt(localStorage.getItem('spindle_volume'), 10);
+  if(isNaN(volume)) volume = 80;
+  let prevVolume = volume > 0 ? volume : 80;
+  let muted = false;
   let navHistory = [];
   let sortMode = 'added'; // added | artist | album  (applies to the All Songs view)
 
@@ -1228,6 +1295,7 @@
           ytReady = true;
           duration = ytPlayer.getDuration() || 0;
           totalTimeEl.textContent = fmt(duration);
+          ytPlayer.setVolume(muted ? 0 : volume);
         },
         onStateChange: (e) => {
           if(e.data === YT.PlayerState.ENDED){ handleTrackEnded(); }
@@ -1268,6 +1336,11 @@
   const totalTimeEl = document.getElementById('totalTime');
   const crate = document.getElementById('crate');
   const upnextList = document.getElementById('upnextList');
+  const volumeTrack = document.getElementById('volumeTrack');
+  const volumeFill = document.getElementById('volumeFill');
+  const volumeKnob = document.getElementById('volumeKnob');
+  const volumeIcon = document.getElementById('volumeIcon');
+  const volumeIconSvg = document.getElementById('volumeIconSvg');
   const upnextLabel = document.getElementById('upnextLabel');
 
   function fmt(s){
@@ -1275,6 +1348,8 @@
     const m = Math.floor(s/60), sec = Math.floor(s%60);
     return m + ":" + String(sec).padStart(2,'0');
   }
+  const ELLIPSIS_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>';
+  const DRAG_HANDLE_ICON = '<svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><circle cx="9" cy="6" r="1.6"/><circle cx="15" cy="6" r="1.6"/><circle cx="9" cy="12" r="1.6"/><circle cx="15" cy="12" r="1.6"/><circle cx="9" cy="18" r="1.6"/><circle cx="15" cy="18" r="1.6"/></svg>';
   function escapeHtml(s){
     const d = document.createElement('div');
     d.textContent = s || '';
@@ -1306,6 +1381,20 @@
   }
 
   // ---------- Up-next panel ----------
+  let dragSrcIndex = null;
+
+  function reorderQueue(from, to){
+    if(from === to || from == null || to == null) return;
+    const movingId = queue[current] ? queue[current].id : null;
+    const [item] = queue.splice(from, 1);
+    queue.splice(to, 0, item);
+    if(movingId){
+      const newIndex = queue.findIndex(t => t.id === movingId);
+      if(newIndex !== -1) current = newIndex;
+    }
+    renderUpNext();
+  }
+
   function renderUpNext(){
     upnextLabel.textContent = (queueLabel === 'All Songs' ? 'Playing from All Songs' : 'Playing from ' + queueLabel);
     upnextList.innerHTML = '';
@@ -1316,11 +1405,16 @@
     queue.forEach((t, i) => {
       const row = document.createElement('div');
       row.className = 'upnext-row' + (i === current ? ' now-playing' : '');
+      row.draggable = true;
       row.innerHTML = `
         <div class="upnext-idx">${i === current ? '' : i + 1}</div>
         <div class="upnext-meta">
           <div class="t">${escapeHtml(t.title)}</div>
           <div class="a">${escapeHtml(cleanArtist(t.artist))}</div>
+        </div>
+        <div class="upnext-actions">
+          <button class="icon-btn upnext-edit-btn" title="Edit details">${ELLIPSIS_ICON}</button>
+          <div class="upnext-drag-handle" title="Drag to reorder">${DRAG_HANDLE_ICON}</div>
         </div>
       `;
       if(i === current){
@@ -1329,6 +1423,34 @@
         if(!playing) idxCell.innerHTML = (i+1);
       }
       row.addEventListener('click', () => { current = i; loadCurrent(true); });
+      row.querySelector('.upnext-edit-btn').addEventListener('click', (e) => {
+        e.stopPropagation();
+        openEditModal(t.id);
+      });
+
+      row.addEventListener('dragstart', (e) => {
+        dragSrcIndex = i;
+        row.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        try{ e.dataTransfer.setData('text/plain', String(i)); }catch(err){}
+      });
+      row.addEventListener('dragend', () => {
+        row.classList.remove('dragging');
+        upnextList.querySelectorAll('.upnext-row.drag-over').forEach(r => r.classList.remove('drag-over'));
+        dragSrcIndex = null;
+      });
+      row.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        row.classList.add('drag-over');
+      });
+      row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+      row.addEventListener('drop', (e) => {
+        e.preventDefault();
+        row.classList.remove('drag-over');
+        reorderQueue(dragSrcIndex, i);
+      });
+
       upnextList.appendChild(row);
     });
   }
@@ -1545,7 +1667,7 @@
       </div>
       <div class="track-actions">
         <button class="icon-btn edit-btn" title="Edit details">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+          ${ELLIPSIS_ICON}
         </button>
         ${extView === 'all' ? `<button class="icon-btn add-to-playlist-btn" title="Add to playlist">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
@@ -1582,7 +1704,7 @@
         <div class="a">${escapeHtml(al.artist)}${al.artist ? ' · ' : ''}${al.tracks.length} song${al.tracks.length === 1 ? '' : 's'}</div>
       </div>
       <button class="icon-btn album-edit-btn" title="Edit album">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+        ${ELLIPSIS_ICON}
       </button>
       <div class="album-art-thumb"${art ? ` style="background-image:url('${art}')"` : ''}></div>
     `;
@@ -1859,6 +1981,7 @@
     renderUpNext();
     if(ytReady){
       ytPlayer.loadVideoById(t.videoId);
+      applyVolume();
       if(!autoplay) ytPlayer.pauseVideo();
       setPlaying(autoplay);
     }
@@ -1936,6 +2059,67 @@
     ytPlayer.seekTo(elapsed, true);
     updateProgress();
   });
+
+  // ---------- Volume ----------
+  const volumeMuteIconPath = '<path d="M16.5 12L19 9.5m0 5L16.5 12"/><path d="M3 10v4h4l5 5V5L7 10H3z"/>';
+  function volumeIconMarkup(){
+    if(muted || volume === 0){
+      return '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 10v4h4l5 5V5L7 10H3z" fill="currentColor" stroke="none"/><path d="M16 9l6 6M22 9l-6 6"/></svg>';
+    }
+    if(volume < 50){
+      return '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 10v4h4l5 5V5L7 10H3z"/><path d="M16.5 12c0-1.77-1-3.29-2.5-4.03v8.06c1.5-.74 2.5-2.26 2.5-4.03z"/></svg>';
+    }
+    return '<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M3 10v4h4l5 5V5L7 10H3z"/><path d="M16.5 12c0-1.77-1-3.29-2.5-4.03v8.06c1.5-.74 2.5-2.26 2.5-4.03z"/><path d="M14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z"/></svg>';
+  }
+  function updateVolumeUI(){
+    const pct = muted ? 0 : volume;
+    volumeFill.style.width = pct + '%';
+    volumeKnob.style.left = pct + '%';
+    volumeIcon.innerHTML = volumeIconMarkup();
+    volumeIcon.title = muted ? 'Unmute' : 'Mute';
+  }
+  function applyVolume(){
+    if(ytReady) ytPlayer.setVolume(muted ? 0 : volume);
+  }
+  function setVolume(v){
+    volume = Math.max(0, Math.min(100, Math.round(v)));
+    if(volume > 0) muted = false;
+    localStorage.setItem('spindle_volume', String(volume));
+    applyVolume();
+    updateVolumeUI();
+  }
+  function volumeFromEvent(e){
+    const rect = volumeTrack.getBoundingClientRect();
+    const clientX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+    const pct = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
+    return pct * 100;
+  }
+  let draggingVolume = false;
+  volumeTrack.addEventListener('mousedown', (e) => {
+    draggingVolume = true;
+    setVolume(volumeFromEvent(e));
+  });
+  window.addEventListener('mousemove', (e) => {
+    if(!draggingVolume) return;
+    setVolume(volumeFromEvent(e));
+  });
+  window.addEventListener('mouseup', () => { draggingVolume = false; });
+  volumeTrack.addEventListener('touchstart', (e) => { draggingVolume = true; setVolume(volumeFromEvent(e)); }, { passive:true });
+  volumeTrack.addEventListener('touchmove', (e) => { if(draggingVolume) setVolume(volumeFromEvent(e)); }, { passive:true });
+  volumeTrack.addEventListener('touchend', () => { draggingVolume = false; });
+  volumeIcon.addEventListener('click', () => {
+    if(muted || volume === 0){
+      muted = false;
+      volume = prevVolume > 0 ? prevVolume : 80;
+    } else {
+      prevVolume = volume;
+      muted = true;
+    }
+    localStorage.setItem('spindle_volume', String(volume));
+    applyVolume();
+    updateVolumeUI();
+  });
+  updateVolumeUI();
 
   // ---------- Shuffle / repeat ----------
   const shuffleBtn = document.getElementById('shuffleBtn');
