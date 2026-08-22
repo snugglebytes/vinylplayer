@@ -16,6 +16,10 @@
     --cream: #f4ead9;
     --label-red: #a3312a;
     --label-red-dark: #7c231d;
+    --label-face: #efe4cc;
+    --label-face-dark: #d9c7a0;
+    --label-ink: #40281e;
+    --label-ink-soft: rgba(64,40,30,0.68);
     --shadow: rgba(0,0,0,0.55);
   }
 
@@ -227,36 +231,29 @@
     width: 34%;
     aspect-ratio:1/1;
     border-radius:50%;
-    background: radial-gradient(circle at 40% 35%, var(--label-red), var(--label-red-dark) 80%);
     box-shadow: 0 0 0 2px rgba(0,0,0,0.4), inset 0 2px 4px rgba(255,255,255,0.15);
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
-    text-align:center;
     position:relative;
   }
-  .label::before{
-    content:"";
-    position:absolute; width:10px; height:10px; border-radius:50%;
-    background: var(--walnut-dark);
-    box-shadow: inset 0 1px 2px rgba(0,0,0,0.6);
-    z-index:2;
+  .label-svg{
+    width:100%; height:100%; display:block; border-radius:50%; overflow:visible;
   }
-  .label-title{
+  .label-face{ fill:#efe4cc; }
+  .label-face-shade{ fill: url(#labelFaceGrad); }
+  .label-hole{ fill: var(--walnut-dark); filter: drop-shadow(0 1px 1px rgba(0,0,0,0.6)); }
+  .label-album-text{
     font-family:'Fraunces', serif;
-    font-weight:600;
-    font-size: 10px;
-    letter-spacing:0.5px;
-    line-height:1.2;
-    padding: 0 10px;
-    color: rgba(244,234,217,0.92);
-    max-width: 90%;
-    overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+    font-weight:700;
+    font-size: 9.5px;
+    letter-spacing:0.3px;
+    fill: var(--label-ink);
   }
-  .label-sub{
-    font-size: 7px;
-    letter-spacing: 2px;
-    text-transform:uppercase;
-    color: rgba(244,234,217,0.55);
-    margin-top:3px;
+  .label-artist-text{
+    font-family:'JetBrains Mono', monospace;
+    font-weight:600;
+    font-size: 5px;
+    letter-spacing: 1.6px;
+    text-transform: uppercase;
+    fill: var(--label-ink-soft);
   }
 
   /* ---- Tonearm ---- */
@@ -903,8 +900,24 @@
           <div class="record-art" id="recordArt"></div>
           <div class="record-grooves"></div>
           <div class="label" id="label">
-            <div class="label-title" id="labelTitle">Loading…</div>
-            <div class="label-sub">Side A</div>
+            <svg class="label-svg" viewBox="0 0 100 100">
+              <defs>
+                <radialGradient id="labelFaceGrad" cx="40%" cy="35%" r="75%">
+                  <stop offset="0%" stop-color="#f4ead2"/>
+                  <stop offset="100%" stop-color="#d9c7a0"/>
+                </radialGradient>
+                <path id="labelArcTop" d="M 14.3,37 A 38,38 0 0 1 85.7,37" fill="none"/>
+                <path id="labelArcBottom" d="M 14.3,63 A 38,38 0 0 0 85.7,63" fill="none"/>
+              </defs>
+              <circle cx="50" cy="50" r="49" class="label-face-shade"/>
+              <text class="label-album-text" text-anchor="middle">
+                <textPath href="#labelArcTop" xlink:href="#labelArcTop" startOffset="50%" id="labelTitle">Loading…</textPath>
+              </text>
+              <text class="label-artist-text" text-anchor="middle">
+                <textPath href="#labelArcBottom" xlink:href="#labelArcBottom" startOffset="50%" id="labelArtistText">—</textPath>
+              </text>
+              <circle cx="50" cy="50" r="3.6" class="label-hole"/>
+            </svg>
           </div>
         </div>
         <div class="tonearm" id="tonearm">
@@ -1187,6 +1200,7 @@
   const trackTitle = document.getElementById('trackTitle');
   const trackArtist = document.getElementById('trackArtist');
   const labelTitle = document.getElementById('labelTitle');
+  const labelArtistText = document.getElementById('labelArtistText');
   const playBtn = document.getElementById('playBtn');
   const playIcon = document.getElementById('playIcon');
   const progressFill = document.getElementById('progressFill');
@@ -1211,6 +1225,26 @@
   // YouTube auto-generated music channels are named "Artist - Topic" — strip that suffix.
   function cleanArtist(s){
     return (s || '').replace(/\s*-\s*topic\s*$/i, '').trim();
+  }
+
+  // Curved label text has limited room — trim long names so they don't overrun the arc.
+  function truncateForLabel(s, max){
+    s = (s || '').trim();
+    if(s.length > max) return s.slice(0, max - 1).trimEnd() + '…';
+    return s;
+  }
+  // The label shows the ALBUM title (curved along the top, bold) and the
+  // artist (curved along the bottom, in the old "Side A" small-caps style).
+  // Falls back to the track title when no album is tagged.
+  function updateLabel(t){
+    if(!t){
+      labelTitle.textContent = '—';
+      labelArtistText.textContent = '—';
+      return;
+    }
+    const albumName = (t.album || '').trim();
+    labelTitle.textContent = truncateForLabel(albumName || t.title, 24);
+    labelArtistText.textContent = truncateForLabel(cleanArtist(t.artist), 30) || '—';
   }
 
   // ---------- Up-next panel ----------
@@ -1621,7 +1655,7 @@
         if(queue[current] && queue[current].id === track.id){
           trackTitle.textContent = track.title;
           trackArtist.textContent = track.artist;
-          labelTitle.textContent = track.title;
+          updateLabel(track);
         }
       })
       .catch(() => {
@@ -1662,7 +1696,7 @@
     elapsed = 0;
     trackTitle.textContent = t.title;
     trackArtist.textContent = cleanArtist(t.artist);
-    labelTitle.textContent = t.title;
+    updateLabel(t);
     recordArt.style.backgroundImage = t.art ? `url("${t.art}")` : 'none';
     renderCrate();
     renderUpNext();
@@ -1832,7 +1866,7 @@
     if(queue[current] && queue[current].id === t.id){
       trackTitle.textContent = t.title;
       trackArtist.textContent = cleanArtist(t.artist);
-      labelTitle.textContent = t.title;
+      updateLabel(t);
       recordArt.style.backgroundImage = t.art ? `url("${t.art}")` : 'none';
     }
     closeEditModal();
@@ -1913,7 +1947,7 @@
       const t = queue[current];
       trackTitle.textContent = t.title;
       trackArtist.textContent = cleanArtist(t.artist);
-      labelTitle.textContent = t.title;
+      updateLabel(t);
       recordArt.style.backgroundImage = t.art ? `url("${t.art}")` : 'none';
     }
     closeAlbumEditModal();
@@ -1933,7 +1967,7 @@
   closeExtPanel(); // start closed, just initializes state cleanly
   trackTitle.textContent = queue[0] ? queue[0].title : '—';
   trackArtist.textContent = queue[0] ? cleanArtist(queue[0].artist) : '—';
-  labelTitle.textContent = queue[0] ? queue[0].title : '—';
+  updateLabel(queue[0]);
   recordArt.style.backgroundImage = (queue[0] && queue[0].art) ? `url("${queue[0].art}")` : 'none';
   renderUpNext();
 </script>
