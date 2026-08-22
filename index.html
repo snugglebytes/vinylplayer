@@ -712,7 +712,7 @@
     outline: none;
     min-width: 0;
   }
-  .add-row input#addUrlInput{ flex: 1 1 100%; }
+  .add-row input#addUrlInput, .add-row input#upnextAddUrlInput{ flex: 1 1 100%; }
   .add-row input::placeholder{ color: rgba(244,234,217,0.35); }
   .add-row input:focus{ border-color: var(--brass); }
   .add-row button{
@@ -1133,6 +1133,11 @@
   <div class="now-playing-head">
     <div class="now-playing-title">Up Next</div>
   </div>
+  <div class="add-row" id="upnextAddRow">
+    <input type="text" id="upnextAddUrlInput" placeholder="Paste a YouTube link…" />
+    <button id="upnextAddBtn" title="Add track">Add</button>
+  </div>
+  <div class="add-feedback" id="upnextAddFeedback"></div>
   <div class="upnext-label" id="upnextLabel">Up next</div>
   <div class="upnext-list" id="upnextList"></div>
 </aside>
@@ -1322,6 +1327,7 @@
   // ---------- Playback state ----------
   let queue = tracks.slice();      // the list currently being played through
   let queueLabel = 'All Songs';
+  let queuePlaylistId = null; // id of the playlist currently on queue, if any (null = All Songs / Suggested / etc.)
   let current = 0;                 // index into `queue`
   let playing = false;
   let elapsed = 0;
@@ -1956,10 +1962,21 @@
   // Point playback at a fresh list. If shuffle is on, the list is shuffled
   // immediately so the Up Next panel always shows the order that's actually
   // going to play.
-  function setQueue(list, label){
+  function setQueue(list, label, playlistId){
     queueLabel = label;
+    queuePlaylistId = playlistId || null;
     preShuffleQueue = null;
     queue = shuffle ? shuffleArray(list) : list.slice();
+  }
+
+  // Resolves an ext-panel view to a real playlist id, or null if the view
+  // isn't backed by an actual playlist (All Songs, Albums, Artists, a
+  // specific album/artist grouping).
+  function playlistIdForView(view){
+    if(!view || view === 'all' || view === 'albums' || view === 'artists') return null;
+    if(view.startsWith('album:') || view.startsWith('artist:')) return null;
+    const pl = playlists.find(p => p.id === view);
+    return pl ? pl.id : null;
   }
 
   function playSuggestedTrack(t, suggestions){
@@ -2079,7 +2096,7 @@
   }
 
   function playFromList(list, trackId){
-    setQueue(list, extView === 'all' ? 'All Songs' : (playlists.find(p => p.id === extView) || {}).name || 'Playlist');
+    setQueue(list, extView === 'all' ? 'All Songs' : (playlists.find(p => p.id === extView) || {}).name || 'Playlist', playlistIdForView(extView));
     current = queue.findIndex(t => t.id === trackId);
     if(current < 0) current = 0;
     renderUpNext();
@@ -2159,8 +2176,8 @@
     return tracks.find(t => t.id !== excludeId && normKey(t.title) === nt && normKey(cleanArtist(t.artist)) === na) || null;
   }
   let addFeedbackTimer = null;
-  function showAddFeedback(msg){
-    const el = document.getElementById('addFeedback');
+  function showAddFeedback(msg, targetId){
+    const el = document.getElementById(targetId || 'addFeedback');
     el.textContent = msg;
     el.classList.add('show');
     clearTimeout(addFeedbackTimer);
@@ -2182,10 +2199,42 @@
       input.value = '';
       return;
     }
-    const newTrack = { id: uid(), title: 'Loading title…', artist: '', album: '', art: '', videoId: id };
-    tracks.push(newTrack);
+    const newTrack = { id: uid(), title: 'Loading title…', artist: '', album: '', art: '', videoId: id, _feedbackTarget: 'addFeedback' };
+    tracks.unshift(newTrack);
     saveTracks();
     renderCrate(); renderPlaylistNav();
+    input.value = '';
+    fetchTitleFor(newTrack);
+  }
+
+  // ---------- Add track via the Up Next panel's own paste-link field ----------
+  // Always lands in All Songs (added to the top). If the queue is currently
+  // playing from a specific playlist, it's also added to that playlist and
+  // to the live Up Next queue. Fully independent from the sidebar's add field.
+  function addTrackFromUrlToUpNext(){
+    const input = document.getElementById('upnextAddUrlInput');
+    const id = extractVideoId(input.value);
+    if(!id){
+      input.style.borderColor = 'var(--label-red)';
+      setTimeout(() => { input.style.borderColor = ''; }, 1200);
+      return;
+    }
+    const existingByVideo = tracks.find(t => t.videoId === id);
+    if(existingByVideo){
+      showAddFeedback(`Already in your library — "${existingByVideo.title}"${cleanArtist(existingByVideo.artist) ? ' by ' + cleanArtist(existingByVideo.artist) : ''}.`, 'upnextAddFeedback');
+      input.value = '';
+      return;
+    }
+    const newTrack = { id: uid(), title: 'Loading title…', artist: '', album: '', art: '', videoId: id, _feedbackTarget: 'upnextAddFeedback' };
+    tracks.unshift(newTrack);
+    queue.push(newTrack);
+    if(queuePlaylistId){
+      const pl = playlists.find(p => p.id === queuePlaylistId);
+      if(pl && !pl.trackIds.includes(newTrack.id)) pl.trackIds.push(newTrack.id);
+      savePlaylists();
+    }
+    saveTracks();
+    renderCrate(); renderPlaylistNav(); renderUpNext();
     input.value = '';
     fetchTitleFor(newTrack);
   }
@@ -2228,9 +2277,12 @@
         const dupe = findDuplicateTrack(track.title, track.artist, track.id);
         if(dupe){
           tracks = tracks.filter(t => t.id !== track.id);
-          saveTracks();
+          queue = queue.filter(t => t.id !== track.id);
+          playlists.forEach(pl => { pl.trackIds = pl.trackIds.filter(id => id !== track.id); });
+          if(current >= queue.length) current = Math.max(0, queue.length - 1);
+          saveTracks(); savePlaylists();
           renderCrate(); renderPlaylistNav(); renderUpNext();
-          showAddFeedback(`Already have "${dupe.title}"${cleanArtist(dupe.artist) ? ' by ' + cleanArtist(dupe.artist) : ''} in your library.`);
+          showAddFeedback(`Already have "${dupe.title}"${cleanArtist(dupe.artist) ? ' by ' + cleanArtist(dupe.artist) : ''} in your library.`, track._feedbackTarget);
           return;
         }
         saveTracks();
@@ -2251,6 +2303,11 @@
   document.getElementById('addBtn').addEventListener('click', addTrackFromUrl);
   document.getElementById('addUrlInput').addEventListener('keydown', (e) => {
     if(e.key === 'Enter') addTrackFromUrl();
+  });
+
+  document.getElementById('upnextAddBtn').addEventListener('click', addTrackFromUrlToUpNext);
+  document.getElementById('upnextAddUrlInput').addEventListener('keydown', (e) => {
+    if(e.key === 'Enter') addTrackFromUrlToUpNext();
   });
 
   const sortBtn = document.getElementById('sortBtn');
