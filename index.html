@@ -617,7 +617,6 @@
     min-width: 0;
   }
   .add-row input#addUrlInput{ flex: 1 1 100%; }
-  .add-row input.album-input{ flex: 1 1 auto; }
   .add-row input::placeholder{ color: rgba(244,234,217,0.35); }
   .add-row input:focus{ border-color: var(--brass); }
   .add-row button{
@@ -635,6 +634,26 @@
     flex-shrink:0;
   }
   .add-row button:hover{ filter: brightness(1.05); }
+
+  .search-row{ position:relative; margin-bottom: 10px; }
+  .search-row .search-icon{
+    position:absolute; left:10px; top:50%; transform:translateY(-50%);
+    color: rgba(244,234,217,0.35);
+    pointer-events:none;
+  }
+  .search-row input{
+    width: 100%;
+    background: rgba(0,0,0,0.25);
+    border: 1px solid rgba(201,154,84,0.25);
+    border-radius: 8px;
+    padding: 9px 11px 9px 30px;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 12px;
+    color: var(--cream);
+    outline: none;
+  }
+  .search-row input::placeholder{ color: rgba(244,234,217,0.35); }
+  .search-row input:focus{ border-color: var(--brass); }
 
   .crate{
     display:flex; flex-direction:column; gap:2px;
@@ -996,6 +1015,11 @@
       <span>Albums</span>
       <span class="count" id="albumsCount">0</span>
     </div>
+    <div class="nav-item" id="navArtists">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="8" r="4.2"/></svg>
+      <span>Artists</span>
+      <span class="count" id="artistsCount">0</span>
+    </div>
     <div class="nav-divider" id="playlistsDivider"></div>
     <div id="playlistNavList"></div>
     <button class="new-playlist-btn" id="newPlaylistBtn">
@@ -1020,8 +1044,11 @@
   </div>
   <div class="add-row" id="extAddRow">
     <input type="text" id="addUrlInput" placeholder="Paste a YouTube link…" />
-    <input type="text" id="addAlbumInput" placeholder="Album (optional)" class="album-input" />
     <button id="addBtn" title="Add track">Add</button>
+  </div>
+  <div class="search-row" id="extSearchRow">
+    <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+    <input type="text" id="extSearchInput" placeholder="Search…" />
   </div>
   <div class="add-feedback" id="addFeedback"></div>
   <div class="sort-indicator" id="sortIndicator" style="display:none;"></div>
@@ -1289,7 +1316,11 @@
 
   const navAlbums = document.getElementById('navAlbums');
   const albumsCount = document.getElementById('albumsCount');
+  const navArtists = document.getElementById('navArtists');
+  const artistsCount = document.getElementById('artistsCount');
   const playlistsDivider = document.getElementById('playlistsDivider');
+  const extSearchInput = document.getElementById('extSearchInput');
+  let extSearchTerm = '';
 
   // Albums are grouped by album name + artist together, so two different
   // artists who happen to share an album name don't get merged into one.
@@ -1312,12 +1343,33 @@
     return withArt ? withArt.art : '';
   }
 
+  // Artists menu — songs are grouped and alphabetized by (cleaned) artist name automatically.
+  function getArtists(){
+    const map = new Map();
+    tracks.forEach(t => {
+      const name = cleanArtist(t.artist).trim();
+      if(!name) return;
+      const key = normKey(name);
+      if(!map.has(key)) map.set(key, { key, name, tracks: [] });
+      map.get(key).tracks.push(t);
+    });
+    return Array.from(map.values()).sort((a,b) => a.name.localeCompare(b.name));
+  }
+  function artistArtFor(ar){
+    const withArt = ar.tracks.find(t => t.art);
+    return withArt ? withArt.art : '';
+  }
+
   function renderPlaylistNav(){
     allSongsCount.textContent = tracks.length;
 
     const albums = getAlbums();
     albumsCount.textContent = albums.length;
     navAlbums.classList.toggle('active', extView === 'albums' || (extView && extView.startsWith('album:')));
+
+    const artists = getArtists();
+    artistsCount.textContent = artists.length;
+    navArtists.classList.toggle('active', extView === 'artists' || (extView && extView.startsWith('artist:')));
 
     playlistNavList.innerHTML = '';
     playlists.forEach(pl => {
@@ -1343,29 +1395,48 @@
     sidebarExt.classList.remove('open');
     sidebarOverlay.classList.remove('open');
     extView = null;
+    extSearchTerm = '';
+    extSearchInput.value = '';
     renderPlaylistNav();
   }
   function openExtPanel(view){
     extView = view;
     sidebarExt.classList.add('open');
+    extSearchTerm = '';
+    extSearchInput.value = '';
     if(view === 'all'){
       extTitle.textContent = 'All Songs';
       extAddRow.style.display = 'flex';
       sortBtn.style.display = 'flex';
+      extSearchInput.placeholder = 'Search your songs…';
     } else if(view === 'albums'){
       extTitle.textContent = 'Albums';
       extAddRow.style.display = 'none';
       sortBtn.style.display = 'none';
+      extSearchInput.placeholder = 'Search albums…';
     } else if(view.startsWith('album:')){
       const al = getAlbums().find(a => a.key === view.slice('album:'.length));
       extTitle.textContent = al ? al.name : 'Album';
       extAddRow.style.display = 'none';
       sortBtn.style.display = 'none';
+      extSearchInput.placeholder = 'Search this album…';
+    } else if(view === 'artists'){
+      extTitle.textContent = 'Artists';
+      extAddRow.style.display = 'none';
+      sortBtn.style.display = 'none';
+      extSearchInput.placeholder = 'Search artists…';
+    } else if(view.startsWith('artist:')){
+      const ar = getArtists().find(a => a.key === view.slice('artist:'.length));
+      extTitle.textContent = ar ? ar.name : 'Artist';
+      extAddRow.style.display = 'none';
+      sortBtn.style.display = 'none';
+      extSearchInput.placeholder = 'Search this artist…';
     } else {
       const pl = playlists.find(p => p.id === view);
       extTitle.textContent = pl ? pl.name : 'Playlist';
       extAddRow.style.display = 'none';
       sortBtn.style.display = 'none';
+      extSearchInput.placeholder = 'Search this playlist…';
     }
     renderPlaylistNav();
     renderCrate();
@@ -1373,6 +1444,8 @@
   function closeExtPanel(){
     sidebarExt.classList.remove('open');
     extView = null;
+    extSearchTerm = '';
+    extSearchInput.value = '';
     renderPlaylistNav();
   }
 
@@ -1384,6 +1457,11 @@
   document.addEventListener('keydown', (e) => { if(e.key === 'Escape'){ closeSidebar(); } });
   navAllSongs.addEventListener('click', () => openExtPanel('all'));
   navAlbums.addEventListener('click', () => openExtPanel('albums'));
+  navArtists.addEventListener('click', () => openExtPanel('artists'));
+  extSearchInput.addEventListener('input', () => {
+    extSearchTerm = extSearchInput.value.trim().toLowerCase();
+    renderCrate();
+  });
 
   document.getElementById('newPlaylistBtn').addEventListener('click', () => {
     const name = prompt('Name your playlist:');
@@ -1398,14 +1476,30 @@
   // ---------- Crate (track list inside extended panel) ----------
   function currentExtTracks(){
     if(extView === 'all') return tracks;
-    if(extView === 'albums') return [];
+    if(extView === 'albums' || extView === 'artists') return [];
     if(extView && extView.startsWith('album:')){
       const key = extView.slice('album:'.length);
       return tracks.filter(t => (t.album || '').trim() && albumKey(t.album, t.artist) === key);
     }
+    if(extView && extView.startsWith('artist:')){
+      const key = extView.slice('artist:'.length);
+      return tracks.filter(t => cleanArtist(t.artist).trim() && normKey(cleanArtist(t.artist)) === key);
+    }
     const pl = playlists.find(p => p.id === extView);
     if(!pl) return [];
     return pl.trackIds.map(trackById).filter(Boolean);
+  }
+
+  // Search filters whichever list/view is currently open.
+  function matchesSearch(t){
+    if(!extSearchTerm) return true;
+    return (t.title || '').toLowerCase().includes(extSearchTerm) ||
+      cleanArtist(t.artist).toLowerCase().includes(extSearchTerm) ||
+      (t.album || '').toLowerCase().includes(extSearchTerm);
+  }
+  function visibleTracks(){
+    const list = currentExtTracks();
+    return extSearchTerm ? list.filter(matchesSearch) : list;
   }
 
   function renderTrackRow(t, container){
@@ -1430,7 +1524,7 @@
         </button>
       </div>
     `;
-    const list = currentExtTracks();
+    const list = visibleTracks();
     row.querySelector('.track-meta').addEventListener('click', () => playFromList(list, t.id));
     row.querySelector('.mini-disc').addEventListener('click', () => playFromList(list, t.id));
     row.querySelector('.edit-btn').addEventListener('click', (e) => { e.stopPropagation(); openEditModal(t.id); });
@@ -1441,7 +1535,7 @@
     row.querySelector('.remove-btn').addEventListener('click', (e) => {
       e.stopPropagation();
       if(extView === 'all') removeTrackEverywhere(t.id);
-      else if(extView && extView.startsWith('album:')) removeTrackEverywhere(t.id);
+      else if(extView && (extView.startsWith('album:') || extView.startsWith('artist:'))) removeTrackEverywhere(t.id);
       else removeTrackFromPlaylist(extView, t.id);
     });
     container.appendChild(row);
@@ -1467,23 +1561,58 @@
     container.appendChild(row);
   }
 
+  function renderArtistRow(ar, container){
+    const row = document.createElement('div');
+    row.className = 'album-row';
+    const art = artistArtFor(ar);
+    row.innerHTML = `
+      <div class="album-meta">
+        <div class="t">${escapeHtml(ar.name)}</div>
+        <div class="a">${ar.tracks.length} song${ar.tracks.length === 1 ? '' : 's'}</div>
+      </div>
+      <div class="album-art-thumb"${art ? ` style="background-image:url('${art}')"` : ''}></div>
+    `;
+    row.addEventListener('click', () => openExtPanel('artist:' + ar.key));
+    container.appendChild(row);
+  }
+
   function renderCrate(){
     crate.innerHTML = '';
 
     if(extView === 'albums'){
-      const albums = getAlbums();
+      let albums = getAlbums();
+      if(extSearchTerm){
+        albums = albums.filter(al => al.name.toLowerCase().includes(extSearchTerm) || al.artist.toLowerCase().includes(extSearchTerm));
+      }
       if(albums.length === 0){
-        crate.innerHTML = '<div class="crate-empty">No albums yet. Tag a song with an album (or edit one) to see it here.</div>';
+        crate.innerHTML = '<div class="crate-empty">' +
+          (extSearchTerm ? 'No albums match your search.' : 'No albums yet. Tag a song with an album (or edit one) to see it here.') +
+          '</div>';
         return;
       }
       albums.forEach(al => renderAlbumRow(al, crate));
       return;
     }
 
-    const list = currentExtTracks();
+    if(extView === 'artists'){
+      let artists = getArtists();
+      if(extSearchTerm){
+        artists = artists.filter(ar => ar.name.toLowerCase().includes(extSearchTerm));
+      }
+      if(artists.length === 0){
+        crate.innerHTML = '<div class="crate-empty">' +
+          (extSearchTerm ? 'No artists match your search.' : 'No artists yet. Add some songs to see them here.') +
+          '</div>';
+        return;
+      }
+      artists.forEach(ar => renderArtistRow(ar, crate));
+      return;
+    }
+
+    const list = visibleTracks();
     if(list.length === 0){
       crate.innerHTML = '<div class="crate-empty">' +
-        (extView === 'all' ? 'No songs yet. Paste a YouTube link above to add one.' : 'No songs here yet.') +
+        (extSearchTerm ? 'No songs match your search.' : (extView === 'all' ? 'No songs yet. Paste a YouTube link above to add one.' : 'No songs here yet.')) +
         '</div>';
       return;
     }
@@ -1605,7 +1734,6 @@
 
   function addTrackFromUrl(){
     const input = document.getElementById('addUrlInput');
-    const albumInput = document.getElementById('addAlbumInput');
     const id = extractVideoId(input.value);
     if(!id){
       input.style.borderColor = 'var(--label-red)';
@@ -1617,15 +1745,13 @@
     if(existingByVideo){
       showAddFeedback(`Already in your library — "${existingByVideo.title}"${cleanArtist(existingByVideo.artist) ? ' by ' + cleanArtist(existingByVideo.artist) : ''}.`);
       input.value = '';
-      albumInput.value = '';
       return;
     }
-    const newTrack = { id: uid(), title: 'Loading title…', artist: '', album: (albumInput.value || '').trim(), art: '', videoId: id };
+    const newTrack = { id: uid(), title: 'Loading title…', artist: '', album: '', art: '', videoId: id };
     tracks.push(newTrack);
     saveTracks();
     renderCrate(); renderPlaylistNav();
     input.value = '';
-    albumInput.value = '';
     fetchTitleFor(newTrack);
   }
 
