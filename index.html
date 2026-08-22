@@ -27,6 +27,7 @@
 
   body{
     min-height:100vh;
+    overflow-x: hidden;
     background:
       radial-gradient(ellipse at 30% 0%, #2c1b15 0%, transparent 55%),
       radial-gradient(ellipse at 80% 100%, #1c110d 0%, transparent 55%),
@@ -42,9 +43,11 @@
   /* ---- App shell: wood console + the embedded Up Next panel, side by side ---- */
   .app-shell{
     display:flex;
+    flex-wrap: wrap;
     align-items:flex-start;
     justify-content:center;
     gap: 24px;
+    row-gap: 24px;
     width: 100%;
     max-width: 1060px;
   }
@@ -52,7 +55,8 @@
   .console{
     width: 100%;
     max-width: 760px;
-    flex: 1 1 620px;
+    flex: 1 1 440px;
+    min-width: 300px;
     background:
       repeating-linear-gradient(100deg, rgba(0,0,0,0.08) 0 2px, transparent 2px 6px),
       linear-gradient(150deg, var(--walnut-light), var(--walnut) 60%, var(--walnut-dark));
@@ -213,6 +217,25 @@
     display:flex; align-items:center; justify-content:center;
   }
 
+  /* Album sleeve — a square card resting under/behind the platter, peeking
+     out at an angle like a real flatlay shot, instead of art stretched to
+     fill the whole disc. */
+  .record-art{
+    position:absolute;
+    width: 58%;
+    aspect-ratio: 1/1;
+    top: 4%;
+    left: -9%;
+    border-radius: 7px;
+    background:
+      linear-gradient(155deg, #2c2c2c, #101010 75%);
+    background-size: cover;
+    background-position: center;
+    box-shadow: 0 16px 28px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.06);
+    transform: rotate(-8deg);
+    z-index: 1;
+  }
+
   .record{
     position:relative;
     width: 86%;
@@ -223,21 +246,14 @@
     animation: spin 6s linear infinite;
     animation-play-state: paused;
     display:flex; align-items:center; justify-content:center;
+    z-index: 2;
+    background: radial-gradient(circle at 35% 30%, #262626, #0b0b0c 75%);
   }
 
   .record.spinning{ animation-play-state: running; }
 
-  /* Album art layer — sits under the groove texture, tinted through by it */
-  .record-art{
-    position:absolute; inset:0;
-    border-radius:50%;
-    background:
-      radial-gradient(circle at 35% 30%, #262626, #0b0b0c 75%);
-    background-size: cover;
-    background-position: center;
-  }
-
-  /* Groove rings — multiplied over the art so ridges stay visible on a real picture disc */
+  /* Groove rings — sit directly on the black vinyl surface now that the art
+     lives on the separate sleeve card, so grooves stay crisp on every disc. */
   .record-grooves{
     position:absolute; inset:0;
     border-radius:50%;
@@ -457,12 +473,24 @@
   /* ---- Sidebar (library nav) ---- */
   .sidebar-overlay{
     position: fixed; inset: 0;
-    background: rgba(10,6,4,0.45);
+    background: transparent;
     opacity: 0; pointer-events: none;
     transition: opacity 0.25s ease;
     z-index: 40;
   }
   .sidebar-overlay.open{ opacity: 1; pointer-events: auto; }
+
+  /* Shift the console out from under the sidebar(s) instead of darkening the
+     screen, so the vinyl is never hidden behind the panel. */
+  body.sidebar-open .app-shell{
+    transform: translateX(min(300px, 82vw));
+  }
+  body.ext-open .app-shell{
+    transform: translateX(min(640px, 92vw));
+  }
+  .app-shell{
+    transition: transform 0.3s cubic-bezier(.65,0,.35,1);
+  }
 
   .sidebar{
     position: fixed;
@@ -486,7 +514,8 @@
      visible. Not a collapsible sidebar. ---- */
   .upnext-embed{
     width: 280px;
-    flex: 0 0 280px;
+    flex: 1 1 280px;
+    max-width: 380px;
     align-self: flex-start;
     position: sticky;
     top: 32px;
@@ -810,6 +839,22 @@
   .icon-btn:hover{ color: var(--brass-bright); }
   .icon-btn.remove-btn:hover{ color: var(--label-red); }
 
+  .track-row{ transition: background 0.15s ease, opacity 0.15s ease; }
+  .track-row.dragging{ opacity: 0.35; }
+  .track-row.drag-over{ box-shadow: inset 0 2px 0 0 var(--brass-bright); }
+  .track-drag-handle{
+    display:flex; align-items:center; justify-content:center;
+    color: rgba(244,234,217,0.3);
+    padding: 4px;
+    opacity: 0;
+    cursor: grab;
+    flex-shrink:0;
+    transition: opacity 0.15s ease, color 0.15s ease;
+  }
+  .track-drag-handle:hover{ color: var(--brass-bright); }
+  .track-row:hover .track-drag-handle{ opacity: 1; }
+  .track-row.dragging .track-drag-handle{ cursor: grabbing; }
+
   /* ---- Quick-add-to-playlist popover ---- */
   .playlist-popover{
     position: fixed;
@@ -996,8 +1041,8 @@
   <div class="main-layout">
     <div class="player-col">
       <div class="platter-wrap">
+        <div class="record-art" id="recordArt"></div>
         <div class="record" id="record">
-          <div class="record-art" id="recordArt"></div>
           <div class="record-grooves"></div>
           <div class="label" id="label">
             <svg class="label-svg" viewBox="0 0 100 100">
@@ -1046,7 +1091,7 @@
 
       <div class="controls">
         <button class="ctrl-btn toggle-btn" id="shuffleBtn" title="Shuffle">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M17 3l4 4-4 4V8h-3.6c-.5 0-1 .25-1.3.68l-1.1 1.55 1.3 1.85 1-1.4c.1-.1.2-.18.35-.18H21v-2h-3.35c-.15 0-.25-.08-.35-.18l-1-1.4-1.3 1.85 1.1 1.55c.3.43.8.68 1.3.68H21v-2l-4-4v2h-2.85L15 3zM3 6h4.6c.5 0 1 .25 1.3.68L14.5 15c.3.43.8.68 1.3.68H21v2h-5.2c-.5 0-1-.25-1.3-.68L8.9 8.68C8.6 8.25 8.1 8 7.6 8H3V6z"/></svg>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/></svg>
         </button>
         <button class="ctrl-btn" id="prevBtn" title="Previous">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6 8.5 6V6z"/></svg>
@@ -1542,11 +1587,14 @@
   function openSidebar(){
     sidebar.classList.add('open');
     sidebarOverlay.classList.add('open');
+    document.body.classList.add('sidebar-open');
   }
   function closeSidebar(){
     sidebar.classList.remove('open');
     sidebarExt.classList.remove('open');
     sidebarOverlay.classList.remove('open');
+    document.body.classList.remove('sidebar-open');
+    document.body.classList.remove('ext-open');
     extView = null;
     extSearchTerm = '';
     extSearchInput.value = '';
@@ -1555,6 +1603,7 @@
   function openExtPanel(view){
     extView = view;
     sidebarExt.classList.add('open');
+    document.body.classList.add('ext-open');
     extSearchTerm = '';
     extSearchInput.value = '';
     if(view === 'all'){
@@ -1596,6 +1645,7 @@
   }
   function closeExtPanel(){
     sidebarExt.classList.remove('open');
+    document.body.classList.remove('ext-open');
     extView = null;
     extSearchTerm = '';
     extSearchInput.value = '';
@@ -1655,10 +1705,42 @@
     return extSearchTerm ? list.filter(matchesSearch) : list;
   }
 
+  let trackDragSrcId = null;
+
+  function reorderableList(){
+    if(extView === 'all' && sortMode === 'added') return { type: 'all' };
+    const pl = playlists.find(p => p.id === extView);
+    if(pl) return { type: 'playlist', pl };
+    return null;
+  }
+
+  function reorderTracks(fromId, toId){
+    const ctx = reorderableList();
+    if(!ctx || fromId === toId) return;
+    if(ctx.type === 'all'){
+      const fromIdx = tracks.findIndex(t => t.id === fromId);
+      const toIdx = tracks.findIndex(t => t.id === toId);
+      if(fromIdx < 0 || toIdx < 0) return;
+      const [item] = tracks.splice(fromIdx, 1);
+      tracks.splice(toIdx, 0, item);
+      saveTracks();
+    } else {
+      const ids = ctx.pl.trackIds;
+      const fromIdx = ids.indexOf(fromId);
+      const toIdx = ids.indexOf(toId);
+      if(fromIdx < 0 || toIdx < 0) return;
+      const [item] = ids.splice(fromIdx, 1);
+      ids.splice(toIdx, 0, item);
+      savePlaylists();
+    }
+    renderCrate();
+  }
+
   function renderTrackRow(t, container){
     const row = document.createElement('div');
     const isPlaying = (queue[current] && queue[current].id === t.id);
     row.className = 'track-row' + (isPlaying ? ' active' : '');
+    const canReorder = !!reorderableList();
     row.innerHTML = `
       <div class="mini-disc${t.art ? ' has-art' : ''}"${t.art ? ` style="background-image:url('${t.art}')"` : ''}></div>
       <div class="track-meta">
@@ -1675,6 +1757,7 @@
         <button class="icon-btn remove-btn" title="Remove">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
         </button>
+        ${canReorder ? `<div class="track-drag-handle" title="Drag to reorder">${DRAG_HANDLE_ICON}</div>` : ''}
       </div>
     `;
     const list = visibleTracks();
@@ -1691,6 +1774,31 @@
       else if(extView && (extView.startsWith('album:') || extView.startsWith('artist:'))) removeTrackEverywhere(t.id);
       else removeTrackFromPlaylist(extView, t.id);
     });
+    if(canReorder){
+      row.draggable = true;
+      row.addEventListener('dragstart', (e) => {
+        trackDragSrcId = t.id;
+        row.classList.add('dragging');
+        e.dataTransfer.effectAllowed = 'move';
+        try{ e.dataTransfer.setData('text/plain', t.id); }catch(err){}
+      });
+      row.addEventListener('dragend', () => {
+        row.classList.remove('dragging');
+        container.querySelectorAll('.track-row.drag-over').forEach(r => r.classList.remove('drag-over'));
+        trackDragSrcId = null;
+      });
+      row.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        row.classList.add('drag-over');
+      });
+      row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
+      row.addEventListener('drop', (e) => {
+        e.preventDefault();
+        row.classList.remove('drag-over');
+        reorderTracks(trackDragSrcId, t.id);
+      });
+    }
     container.appendChild(row);
   }
 
