@@ -122,6 +122,31 @@
   .menu-btn:hover{ opacity:1; }
   .menu-btn.active{ color: var(--brass-bright); opacity:1; }
 
+  .layout-picker{
+    display:flex; align-items:center; gap:4px;
+    padding: 2px;
+    border-radius: 8px;
+    background: rgba(0,0,0,0.18);
+  }
+  .layout-btn{
+    width: 20px; height: 20px;
+    border-radius: 5px;
+    border: none;
+    background: transparent;
+    color: rgba(244,234,217,0.55);
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    font-weight: 600;
+    cursor: pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .layout-btn:hover{ color: var(--brass-bright); }
+  .layout-btn.active{
+    background: var(--brass);
+    color: var(--walnut-dark);
+  }
+
   /* ---- Main layout: vinyl stands alone, nothing else shares its grid ---- */
   .main-layout{
     display:flex;
@@ -239,6 +264,24 @@
     display:flex; align-items:center; justify-content:center;
   }
 
+  /* ---- Layout C: album sleeve peeking out from behind the disc. Sized to
+     the square platter-wrap and rotated slightly so its corners show past
+     the circular record above it. ---- */
+  .sleeve{
+    position:absolute; inset: 3%;
+    border-radius: 5px;
+    background-color: #180f0a;
+    background-size: cover;
+    background-position: center;
+    box-shadow: 0 14px 30px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(0,0,0,0.5);
+    transform: rotate(-6deg);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+    z-index: 1;
+  }
+  .platter-wrap.layout-tinted .sleeve{ opacity: 1; }
+
   /* Album art printed onto the vinyl surface — fills the circular disc
      (cropped, no letterboxed black edges) with the groove texture
      multiplied on top so it still reads as ridges pressed into the art. */
@@ -265,6 +308,21 @@
     background-size: cover;
     background-position: center;
   }
+
+  /* Layout C: the disc itself stays plain dark vinyl (no art printed on
+     it — the art shows only on the sleeve peeking out behind) with a
+     translucent hue wash laid over it. mix-blend:color keeps the existing
+     dark/light shading of the disc and just tints its hue. */
+  .record-tint{
+    position:absolute; inset:0;
+    border-radius:50%;
+    background-color: transparent;
+    mix-blend-mode: color;
+    opacity: 0;
+    pointer-events:none;
+    transition: opacity 0.2s ease;
+  }
+  .record.layout-tinted .record-tint{ opacity: 0.85; }
 
   /* Groove rings — multiplied over the art so ridges stay visible, like the
      art is printed straight onto the vinyl surface. */
@@ -495,6 +553,8 @@
     transition: color 0.15s ease;
   }
   .volume-icon:hover{ color: var(--brass-bright); }
+  .volume-icon.toggle-btn{ opacity: 0.45; }
+  .volume-icon.toggle-btn.active{ opacity: 1; color: var(--brass-bright); }
   .volume-track{
     flex:1; height: 3px; border-radius: 2px;
     background: rgba(244,234,217,0.15);
@@ -1242,18 +1302,22 @@
     </button>
     <div class="brand" id="brandBtn" title="Shuffle all songs">Spindle</div>
     <div class="header-right">
-      <button class="menu-btn" id="layoutToggleBtn" title="Switch vinyl layout">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none"/></svg>
-      </button>
+      <div class="layout-picker" id="layoutPicker">
+        <button class="layout-btn" id="layoutBtn1" data-layout="classic" title="Layout 1 — full album art">1</button>
+        <button class="layout-btn" id="layoutBtn2" data-layout="embed" title="Layout 2 — art in the label">2</button>
+        <button class="layout-btn" id="layoutBtn3" data-layout="tinted" title="Layout 3 — tinted vinyl, sleeve peeking out">3</button>
+      </div>
       <div class="badge">33⅓ rpm</div>
     </div>
   </header>
 
   <div class="main-layout">
     <div class="player-col">
-      <div class="platter-wrap">
+      <div class="platter-wrap" id="platterWrap">
+        <div class="sleeve" id="sleeve"></div>
         <div class="record" id="record">
           <div class="record-art" id="recordArt"></div>
+          <div class="record-tint" id="recordTint"></div>
           <div class="record-grooves"></div>
           <div class="label" id="label">
             <div class="label-art" id="labelArt"></div>
@@ -1328,6 +1392,12 @@
           <div class="volume-fill" id="volumeFill"></div>
           <div class="volume-knob" id="volumeKnob"></div>
         </div>
+        <button class="volume-icon toggle-btn" id="crossfadeBtn" title="Crossfade between tracks">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h9l-3-3M3 8l3 3"/><path d="M21 16h-9l3 3M21 16l-3-3"/></svg>
+        </button>
+        <button class="volume-icon toggle-btn" id="crackleBtn" title="Vinyl crackle">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="8" r="1.4"/><circle cx="12" cy="15" r="1.6"/><circle cx="18" cy="7" r="1.1"/><circle cx="9" cy="5" r="1"/><circle cx="19" cy="16" r="1.3"/></svg>
+        </button>
       </div>
     </div>
   </div>
@@ -1352,6 +1422,7 @@
 
 <!-- Hidden YouTube player: provides real audio -->
 <div id="ytPlayer" style="position:absolute; width:1px; height:1px; overflow:hidden; opacity:0;"></div>
+<div id="ytPlayerB" style="position:absolute; width:1px; height:1px; overflow:hidden; opacity:0;"></div>
 
 <div class="sidebar-overlay" id="sidebarOverlay"></div>
 
@@ -1577,6 +1648,16 @@
   let timer = null;
   let ytPlayer = null;
   let ytReady = false;
+  let ytPlayerB = null;      // second hidden player, only spun up when crossfade is used
+  let ytReadyB = false;
+  let crossfadeEnabled = (localStorage.getItem('spindle_crossfade') === '1');
+  let crossfading = false;
+  let crossfadeInterval = null;
+  const CROSSFADE_SECONDS = 4;
+  let crackleEnabled = (localStorage.getItem('spindle_crackle') === '1');
+  let audioCtx = null;
+  let crackleSource = null;
+  let crackleGain = null;
   let shuffle = (localStorage.getItem('spindle_shuffle') === '1');
   let repeatMode = localStorage.getItem('spindle_repeat') || 'off'; // off | all | one
   let volume = parseInt(localStorage.getItem('spindle_volume'), 10);
@@ -1620,12 +1701,148 @@
     nextTrack();
   }
 
+  // ---------- Crossfade ----------
+  // The player is a single YouTube iframe, so a true dual-stream overlap
+  // needs a second hidden iframe (ytPlayerB) that's only created the first
+  // time it's actually needed. When the current track nears its end, the
+  // upcoming track is loaded into the back player and the two volumes are
+  // ramped past each other; once the ramp finishes, the `ytPlayer` variable
+  // itself is swapped to point at whichever underlying player is now
+  // audible, so every existing play/pause/seek/volume call site (which all
+  // just read `ytPlayer`) keeps controlling the right one without changes.
+  function ensureBackPlayer(cb){
+    if(ytPlayerB){ cb(); return; }
+    ytPlayerB = new YT.Player('ytPlayerB', {
+      height: '1', width: '1',
+      playerVars: { autoplay: 0, controls: 0, disablekb: 1 },
+      events: {
+        onReady: () => { ytReadyB = true; cb(); },
+        onStateChange: (e) => {
+          if(e.data === YT.PlayerState.ENDED) handleTrackEnded();
+        }
+      }
+    });
+  }
+
+  function peekNextIndex(){
+    if(queue.length === 0) return -1;
+    let idx = current + 1;
+    if(idx >= queue.length){
+      if(repeatMode === 'off') return -1;
+      idx = 0;
+    }
+    return idx;
+  }
+
+  function cancelCrossfade(){
+    if(crossfadeInterval){ clearInterval(crossfadeInterval); crossfadeInterval = null; }
+    if(crossfading && ytPlayerB){
+      try{ ytPlayerB.stopVideo(); ytPlayerB.setVolume(muted ? 0 : volume); }catch(e){}
+    }
+    crossfading = false;
+  }
+
+  function maybeStartCrossfade(){
+    if(!crossfadeEnabled || crossfading || !playing || repeatMode === 'one') return;
+    if(!duration || duration < CROSSFADE_SECONDS * 2) return;
+    if(duration - elapsed > CROSSFADE_SECONDS) return;
+    const nextIdx = peekNextIndex();
+    if(nextIdx === -1) return;
+    const nextT = queue[nextIdx];
+    if(!nextT) return;
+    crossfading = true;
+    ensureBackPlayer(() => {
+      if(!crossfading) return; // cancelled while the back player was spinning up
+      ytPlayerB.setVolume(0);
+      ytPlayerB.loadVideoById(nextT.videoId);
+      ytPlayerB.playVideo();
+      const steps = 20;
+      const stepMs = (CROSSFADE_SECONDS * 1000) / steps;
+      const targetVol = muted ? 0 : volume;
+      let i = 0;
+      crossfadeInterval = setInterval(() => {
+        i++;
+        const frac = i / steps;
+        try{
+          ytPlayer.setVolume(Math.round(targetVol * (1 - frac)));
+          ytPlayerB.setVolume(Math.round(targetVol * frac));
+        }catch(e){}
+        if(i >= steps){
+          clearInterval(crossfadeInterval);
+          crossfadeInterval = null;
+          finishCrossfade(nextIdx);
+        }
+      }, stepMs);
+    });
+  }
+
+  function finishCrossfade(nextIdx){
+    const oldFront = ytPlayer;
+    ytPlayer = ytPlayerB;
+    ytPlayerB = oldFront;
+    try{ ytPlayerB.stopVideo(); }catch(e){}
+    current = nextIdx;
+    elapsed = 0;
+    const t = queue[current];
+    trackTitle.textContent = t.title;
+    trackArtist.textContent = cleanArtist(t.artist);
+    updateLabel(t);
+    applyRecordArt(t);
+    renderCrate();
+    updateNowPlayingHighlight();
+    duration = ytPlayer.getDuration() || 0;
+    totalTimeEl.textContent = fmt(duration);
+    applyVolume();
+    crossfading = false;
+  }
+
+  // ---------- Vinyl crackle ----------
+  // A quiet, looping synthetic noise bed (faint hiss + occasional pops)
+  // mixed in via the Web Audio API alongside the YouTube playback, purely
+  // decorative and independent of the track audio itself.
+  function ensureAudioCtx(){
+    if(!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    return audioCtx;
+  }
+  function buildCrackleBuffer(ctx){
+    const len = ctx.sampleRate * 2;
+    const buffer = ctx.createBuffer(1, len, ctx.sampleRate);
+    const data = buffer.getChannelData(0);
+    for(let i = 0; i < len; i++){
+      let v = (Math.random() * 2 - 1) * 0.025; // faint constant hiss
+      if(Math.random() < 0.002) v += (Math.random() * 2 - 1) * 0.55; // the occasional pop/click
+      data[i] = v;
+    }
+    return buffer;
+  }
+  function startCrackle(){
+    if(crackleSource) return;
+    const ctx = ensureAudioCtx();
+    if(ctx.state === 'suspended') ctx.resume();
+    crackleSource = ctx.createBufferSource();
+    crackleSource.buffer = buildCrackleBuffer(ctx);
+    crackleSource.loop = true;
+    crackleGain = ctx.createGain();
+    crackleGain.gain.value = 0.05;
+    crackleSource.connect(crackleGain).connect(ctx.destination);
+    crackleSource.start(0);
+  }
+  function stopCrackle(){
+    if(!crackleSource) return;
+    try{ crackleSource.stop(); }catch(e){}
+    crackleSource.disconnect();
+    crackleSource = null;
+  }
+
   // ---------- DOM refs ----------
   const record = document.getElementById('record');
   const recordArt = document.getElementById('recordArt');
+  const recordTint = document.getElementById('recordTint');
+  const platterWrap = document.getElementById('platterWrap');
+  const sleeve = document.getElementById('sleeve');
   const labelEl = document.getElementById('label');
   const labelArt = document.getElementById('labelArt');
-  const layoutToggleBtn = document.getElementById('layoutToggleBtn');
+  const layoutBtns = [document.getElementById('layoutBtn1'), document.getElementById('layoutBtn2'), document.getElementById('layoutBtn3')];
   const tonearm = document.getElementById('tonearm');
   const trackTitle = document.getElementById('trackTitle');
   const trackArtist = document.getElementById('trackArtist');
@@ -1780,15 +1997,20 @@
     img.src = src;
   }
 
-  // Single place that decides where the art goes (full disc vs. label) and,
-  // for the embedded layout, kicks off the groove-tint color extraction.
+  // Single place that decides where the art goes (full disc / label / sleeve)
+  // and, for the layouts that need it, kicks off the groove or vinyl tint
+  // color extraction.
   function applyRecordArt(t){
     const art = t && t.art ? t.art : '';
+    recordArt.style.backgroundImage = 'none';
+    labelArt.style.backgroundImage = 'none';
+    sleeve.style.backgroundImage = 'none';
+    record.style.removeProperty('--groove-a');
+    record.style.removeProperty('--groove-b');
+    recordTint.style.backgroundColor = 'transparent';
+
     if(vinylLayout === 'embed'){
-      recordArt.style.backgroundImage = 'none';
       labelArt.style.backgroundImage = art ? `url("${art}")` : 'none';
-      record.style.removeProperty('--groove-a');
-      record.style.removeProperty('--groove-b');
       if(art){
         extractArtHue(art, (rgb) => {
           if(!rgb) return;
@@ -1796,9 +2018,16 @@
           record.style.setProperty('--groove-b', `rgba(${rgb.r},${rgb.g},${rgb.b},0.18)`);
         });
       }
+    } else if(vinylLayout === 'tinted'){
+      sleeve.style.backgroundImage = art ? `url("${art}")` : 'none';
+      if(art){
+        extractArtHue(art, (rgb) => {
+          if(!rgb) return;
+          recordTint.style.backgroundColor = `rgba(${rgb.r},${rgb.g},${rgb.b},0.9)`;
+        });
+      }
     } else {
       recordArt.style.backgroundImage = art ? `url("${art}")` : 'none';
-      labelArt.style.backgroundImage = 'none';
     }
   }
 
@@ -1806,12 +2035,14 @@
     vinylLayout = mode;
     localStorage.setItem('spindle_vinyl_layout', mode);
     record.classList.toggle('layout-embed', mode === 'embed');
+    record.classList.toggle('layout-tinted', mode === 'tinted');
     labelEl.classList.toggle('layout-embed', mode === 'embed');
-    layoutToggleBtn.classList.toggle('active', mode === 'embed');
+    platterWrap.classList.toggle('layout-tinted', mode === 'tinted');
+    layoutBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.layout === mode));
     applyRecordArt(queue[current]);
   }
-  layoutToggleBtn.addEventListener('click', () => {
-    setVinylLayout(vinylLayout === 'embed' ? 'classic' : 'embed');
+  layoutBtns.forEach(btn => {
+    btn.addEventListener('click', () => setVinylLayout(btn.dataset.layout));
   });
 
   // ---------- Up-next panel ----------
@@ -3078,6 +3309,7 @@
       ? '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>'
       : '<path d="M8 5v14l11-7z"/>';
     if(ytReady){ playing ? ytPlayer.playVideo() : ytPlayer.pauseVideo(); }
+    if(crackleEnabled){ playing ? startCrackle() : stopCrackle(); } else { stopCrackle(); }
     clearInterval(timer);
     if(playing){ timer = setInterval(tick, 500); }
     updateNowPlayingHighlight();
@@ -3089,6 +3321,7 @@
     duration = ytPlayer.getDuration() || duration;
     totalTimeEl.textContent = fmt(duration);
     updateProgress();
+    maybeStartCrossfade();
   }
 
   function updateProgress(){
@@ -3100,6 +3333,7 @@
 
   function nextTrack(){
     if(queue.length === 0) return;
+    cancelCrossfade();
     let nextIndex = current + 1;
     if(nextIndex >= queue.length) nextIndex = 0;
     current = nextIndex;
@@ -3108,6 +3342,7 @@
 
   function prevTrack(){
     if(queue.length === 0) return;
+    cancelCrossfade();
     current = (current - 1 + queue.length) % queue.length;
     loadCurrent(true);
   }
@@ -3118,12 +3353,33 @@
 
   progressTrack.addEventListener('click', (e) => {
     if(!ytReady) return;
+    cancelCrossfade();
     const rect = progressTrack.getBoundingClientRect();
     const pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
     elapsed = pct * duration;
     ytPlayer.seekTo(elapsed, true);
     updateProgress();
   });
+
+  // ---------- Crossfade / crackle toggles ----------
+  const crossfadeBtn = document.getElementById('crossfadeBtn');
+  const crackleBtn = document.getElementById('crackleBtn');
+  function updateCrossfadeUI(){ crossfadeBtn.classList.toggle('active', crossfadeEnabled); }
+  function updateCrackleUI(){ crackleBtn.classList.toggle('active', crackleEnabled); }
+  crossfadeBtn.addEventListener('click', () => {
+    crossfadeEnabled = !crossfadeEnabled;
+    localStorage.setItem('spindle_crossfade', crossfadeEnabled ? '1' : '0');
+    if(!crossfadeEnabled) cancelCrossfade();
+    updateCrossfadeUI();
+  });
+  crackleBtn.addEventListener('click', () => {
+    crackleEnabled = !crackleEnabled;
+    localStorage.setItem('spindle_crackle', crackleEnabled ? '1' : '0');
+    if(crackleEnabled && playing) startCrackle(); else stopCrackle();
+    updateCrackleUI();
+  });
+  updateCrossfadeUI();
+  updateCrackleUI();
 
   // ---------- Volume ----------
   const volumeMuteIconPath = '<path d="M16.5 12L19 9.5m0 5L16.5 12"/><path d="M3 10v4h4l5 5V5L7 10H3z"/>';
@@ -3478,8 +3734,10 @@
   trackArtist.textContent = queue[0] ? cleanArtist(queue[0].artist) : '—';
   updateLabel(queue[0]);
   record.classList.toggle('layout-embed', vinylLayout === 'embed');
+  record.classList.toggle('layout-tinted', vinylLayout === 'tinted');
   labelEl.classList.toggle('layout-embed', vinylLayout === 'embed');
-  layoutToggleBtn.classList.toggle('active', vinylLayout === 'embed');
+  platterWrap.classList.toggle('layout-tinted', vinylLayout === 'tinted');
+  layoutBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.layout === vinylLayout));
   applyRecordArt(queue[0]);
   renderUpNext();
   syncVolumeRowWidth();
