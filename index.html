@@ -830,6 +830,12 @@
     content:""; width:8px; height:8px; border-radius:50%;
     background: var(--label-red);
   }
+  /* Square album-art variant used for the All Songs list — no vinyl look */
+  .mini-disc.mini-disc-square{
+    border-radius: 6px;
+    background: repeating-linear-gradient(45deg, #1c1c1c 0 2px, #232323 2px 4px);
+  }
+  .mini-disc.mini-disc-square::after{ content:none; }
 
   .track-meta{ flex:1; min-width:0; }
   .track-meta .t{ font-size:12.5px; color:var(--cream); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
@@ -934,6 +940,47 @@
   .playlist-popover .pp-check.checked{ background: var(--brass-bright); border-color: var(--brass-bright); }
   .playlist-popover .pp-empty{
     font-size: 11px; color: rgba(244,234,217,0.4); padding: 8px;
+  }
+
+  /* ---- Track context menu (opened from the ellipsis button) ---- */
+  .track-context-menu{
+    position: fixed;
+    z-index: 60;
+    background: linear-gradient(170deg, var(--walnut-light), var(--walnut-dark));
+    border: 1px solid rgba(201,154,84,0.3);
+    border-radius: 10px;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.5);
+    padding: 6px;
+    min-width: 210px;
+    display:none;
+  }
+  .track-context-menu.show{ display:block; }
+  .track-context-menu .tcm-item{
+    display:flex; align-items:center; gap:10px;
+    padding: 8px 9px; border-radius:6px; cursor:pointer;
+    font-size: 12px; color: var(--cream);
+  }
+  .track-context-menu .tcm-item:hover{ background: rgba(244,234,217,0.08); }
+  .track-context-menu .tcm-item .tcm-icon{
+    width:14px; height:14px; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    color: rgba(244,234,217,0.6);
+  }
+  .track-context-menu .tcm-item .tcm-label{ flex:1; min-width:0; }
+  .track-context-menu .tcm-item .tcm-key{
+    font-size: 9.5px; letter-spacing:0.5px;
+    color: rgba(244,234,217,0.35);
+    border: 1px solid rgba(244,234,217,0.18);
+    border-radius: 4px;
+    padding: 1px 5px;
+    flex-shrink: 0;
+  }
+  .track-context-menu .tcm-item.tcm-danger .tcm-icon,
+  .track-context-menu .tcm-item.tcm-danger .tcm-label{ color: var(--label-red); }
+  .track-context-menu .tcm-item.tcm-danger:hover{ background: rgba(163,49,42,0.15); }
+  .track-context-menu .tcm-sep{
+    height:1px; margin: 5px 4px;
+    background: rgba(201,154,84,0.18);
   }
 
   /* ---- Edit song modal ---- */
@@ -1305,6 +1352,7 @@
 </aside>
 
 <div class="playlist-popover" id="playlistPopover"></div>
+<div class="track-context-menu" id="trackContextMenu"></div>
 
 <div class="modal-overlay" id="editOverlay">
   <div class="edit-modal">
@@ -1645,7 +1693,7 @@
           <div class="a">${escapeHtml(cleanArtist(t.artist))}</div>
         </div>
         <div class="upnext-actions">
-          <button class="icon-btn upnext-edit-btn" title="Edit details">${ELLIPSIS_ICON}</button>
+          <button class="icon-btn upnext-menu-btn" title="More options">${ELLIPSIS_ICON}</button>
           <div class="upnext-drag-handle" title="Drag to reorder">${DRAG_HANDLE_ICON}</div>
         </div>
       `;
@@ -1655,9 +1703,9 @@
         if(!playing) idxCell.innerHTML = (i+1);
       }
       row.addEventListener('click', () => { current = i; loadCurrent(true); });
-      row.querySelector('.upnext-edit-btn').addEventListener('click', (e) => {
+      row.querySelector('.upnext-menu-btn').addEventListener('click', (e) => {
         e.stopPropagation();
-        openEditModal(t.id);
+        showTrackContextMenu(e.currentTarget, t, { source: 'upnext' });
       });
 
       row.addEventListener('dragstart', (e) => {
@@ -2032,21 +2080,16 @@
     const isPlaying = (queue[current] && queue[current].id === t.id);
     row.className = 'track-row' + (isPlaying ? ' active' : '');
     const canReorder = !!reorderableList();
+    const squareArt = extView === 'all';
     row.innerHTML = `
-      <div class="mini-disc${t.art ? ' has-art' : ''}"${t.art ? ` style="background-image:url('${t.art}')"` : ''}></div>
+      <div class="mini-disc${t.art ? ' has-art' : ''}${squareArt ? ' mini-disc-square' : ''}"${t.art ? ` style="background-image:url('${t.art}')"` : ''}></div>
       <div class="track-meta">
         <div class="t">${escapeHtml(t.title)}</div>
         <div class="a">${escapeHtml(cleanArtist(t.artist))}</div>
       </div>
       <div class="track-actions">
-        <button class="icon-btn edit-btn" title="Edit details">
+        <button class="icon-btn track-menu-btn" title="More options">
           ${ELLIPSIS_ICON}
-        </button>
-        ${extView === 'all' ? `<button class="icon-btn add-to-playlist-btn" title="Add to playlist">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round"/></svg>
-        </button>` : ''}
-        <button class="icon-btn remove-btn" title="Remove">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
         </button>
         ${canReorder ? `<div class="track-drag-handle" title="Drag to reorder">${DRAG_HANDLE_ICON}</div>` : ''}
       </div>
@@ -2054,16 +2097,9 @@
     const list = visibleTracks();
     row.querySelector('.track-meta').addEventListener('click', () => playFromList(list, t.id));
     row.querySelector('.mini-disc').addEventListener('click', () => playFromList(list, t.id));
-    row.querySelector('.edit-btn').addEventListener('click', (e) => { e.stopPropagation(); openEditModal(t.id); });
-    const addBtn = row.querySelector('.add-to-playlist-btn');
-    if(addBtn){
-      addBtn.addEventListener('click', (e) => { e.stopPropagation(); showPlaylistPopover(e.currentTarget, t.id); });
-    }
-    row.querySelector('.remove-btn').addEventListener('click', (e) => {
+    row.querySelector('.track-menu-btn').addEventListener('click', (e) => {
       e.stopPropagation();
-      if(extView === 'all') removeTrackEverywhere(t.id);
-      else if(extView && (extView.startsWith('album:') || extView.startsWith('artist:'))) removeTrackEverywhere(t.id);
-      else removeTrackFromPlaylist(extView, t.id);
+      showTrackContextMenu(e.currentTarget, t, { source: extView === 'all' ? 'library' : (extView && (extView.startsWith('album:') || extView.startsWith('artist:')) ? 'library' : 'playlist'), playlistId: extView, list });
     });
     if(canReorder){
       row.draggable = true;
@@ -2356,6 +2392,120 @@
   document.addEventListener('click', (e) => {
     if(!popover.contains(e.target) && !e.target.closest('.add-to-playlist-btn')){
       popover.classList.remove('show');
+    }
+  });
+
+  // ---------- Track context menu (the "…" button on any track row) ----------
+  const trackContextMenu = document.getElementById('trackContextMenu');
+  const TCM_ICONS = {
+    queue: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h13M3 12h13M3 18h7"/><path d="M18 14v7M14.5 17.5h7"/></svg>',
+    playNext: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h11M3 12h11M3 18h7"/><path d="M15 8l5 4-5 4"/></svg>',
+    edit: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+    playlist: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h13M3 12h13M3 18h7"/><circle cx="19" cy="16" r="3"/><path d="M19 14v-8"/></svg>',
+    album: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/></svg>',
+    artist: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>',
+    trash: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>'
+  };
+
+  // Insert a track right after the currently-playing one; if it's already
+  // queued elsewhere, it's moved rather than duplicated.
+  function playNextTrack(t){
+    const idx = queue.findIndex(q => q.id === t.id);
+    if(idx !== -1){
+      queue.splice(idx, 1);
+      if(idx < current) current -= 1;
+      if(idx === current) current = Math.max(0, current);
+    }
+    queue.splice(current + 1, 0, t);
+    renderUpNext();
+  }
+  function addTrackToQueue(t){
+    if(queue.some(q => q.id === t.id)) return;
+    queue.push(t);
+    renderUpNext();
+  }
+  function removeFromQueueOnly(trackId){
+    const idx = queue.findIndex(q => q.id === trackId);
+    if(idx === -1) return;
+    queue.splice(idx, 1);
+    if(idx < current) current -= 1;
+    else if(current >= queue.length) current = Math.max(0, queue.length - 1);
+    renderUpNext();
+    if(queue[current]) loadCurrent(false);
+  }
+
+  let tcmCurrentTrack = null;
+  let tcmKeyHandler = null;
+
+  function closeTrackContextMenu(){
+    trackContextMenu.classList.remove('show');
+    tcmCurrentTrack = null;
+    if(tcmKeyHandler){ document.removeEventListener('keydown', tcmKeyHandler); tcmKeyHandler = null; }
+  }
+
+  function showTrackContextMenu(anchor, t, opts){
+    opts = opts || {};
+    const source = opts.source || 'library';
+    tcmCurrentTrack = t;
+
+    const items = [];
+    if(source !== 'upnext'){
+      items.push({ key:'q', label:'Add to Queue', shortcut:'Q', icon:TCM_ICONS.queue, action: () => addTrackToQueue(t) });
+    }
+    items.push({ key:'n', label:'Play Next', shortcut:'N', icon:TCM_ICONS.playNext, action: () => playNextTrack(t) });
+    items.push({ key:'e', label:'Edit', shortcut:'E', icon:TCM_ICONS.edit, action: () => openEditModal(t.id) });
+    items.push({ key:'p', label:'Add to Playlist', shortcut:'P', icon:TCM_ICONS.playlist, action: (e) => showPlaylistPopover(anchor, t.id) });
+    items.push({ sep:true });
+    items.push({ key:'delete', label:'Delete', shortcut:'⌫', icon:TCM_ICONS.trash, danger:true, action: () => {
+      if(source === 'upnext') removeFromQueueOnly(t.id);
+      else if(source === 'playlist') removeTrackFromPlaylist(opts.playlistId, t.id);
+      else removeTrackEverywhere(t.id);
+    }});
+    if((t.album || '').trim()){
+      items.push({ key:'a', label:'Go to Album', shortcut:'A', icon:TCM_ICONS.album, action: () => openExtPanel('album:' + albumKey(t.album, t.artist)) });
+    }
+    if(cleanArtist(t.artist).trim()){
+      items.push({ key:'r', label:'Go to Artist', shortcut:'R', icon:TCM_ICONS.artist, action: () => openExtPanel('artist:' + normKey(cleanArtist(t.artist))) });
+    }
+
+    trackContextMenu.innerHTML = items.map(it => {
+      if(it.sep) return '<div class="tcm-sep"></div>';
+      return `<div class="tcm-item${it.danger ? ' tcm-danger' : ''}" data-key="${it.key}">
+        <div class="tcm-icon">${it.icon}</div>
+        <div class="tcm-label">${it.label}</div>
+        <div class="tcm-key">${it.shortcut}</div>
+      </div>`;
+    }).join('');
+
+    items.filter(it => !it.sep).forEach(it => {
+      const el = trackContextMenu.querySelector(`.tcm-item[data-key="${it.key}"]`);
+      if(el) el.addEventListener('click', (e) => { e.stopPropagation(); it.action(e); closeTrackContextMenu(); });
+    });
+
+    const rect = anchor.getBoundingClientRect();
+    trackContextMenu.style.top = (rect.bottom + 6) + 'px';
+    trackContextMenu.style.left = Math.min(rect.left, window.innerWidth - 230) + 'px';
+    trackContextMenu.classList.add('show');
+    popover.classList.remove('show');
+
+    tcmKeyHandler = (e) => {
+      if(e.key === 'Escape'){ closeTrackContextMenu(); return; }
+      const tag = (e.target && e.target.tagName) || '';
+      if(tag === 'INPUT' || tag === 'TEXTAREA') return;
+      const k = e.key.toLowerCase();
+      const match = items.find(it => !it.sep && (it.key === k || (it.key === 'delete' && (e.key === 'Backspace' || e.key === 'Delete'))));
+      if(match){
+        e.preventDefault();
+        match.action(e);
+        closeTrackContextMenu();
+      }
+    };
+    document.addEventListener('keydown', tcmKeyHandler);
+  }
+
+  document.addEventListener('click', (e) => {
+    if(!trackContextMenu.contains(e.target) && !e.target.closest('.track-menu-btn') && !e.target.closest('.upnext-menu-btn')){
+      closeTrackContextMenu();
     }
   });
 
