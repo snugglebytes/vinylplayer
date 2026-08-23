@@ -898,6 +898,7 @@
 
   /* ---- Playlist suggestions (bottom of a playlist's track list) ---- */
   .suggestions-header{
+    display: flex; align-items: center; justify-content: space-between;
     font-size: 10px;
     letter-spacing: 1.5px;
     text-transform: uppercase;
@@ -906,6 +907,13 @@
     margin-top: 6px;
     border-top: 1px solid rgba(201,154,84,0.15);
   }
+  .suggestions-refresh-btn{
+    width: 22px; height: 22px; opacity: 0.55;
+    text-transform: none; letter-spacing: 0;
+  }
+  .suggestions-refresh-btn:hover{ opacity: 1; color: var(--brass-bright); }
+  .suggestions-refresh-btn.spin svg{ animation: suggestions-spin 0.5s ease; }
+  @keyframes suggestions-spin{ from{ transform: rotate(0deg); } to{ transform: rotate(-180deg); } }
   .suggestion-row .add-suggestion-btn{ opacity: 0.55; }
   .suggestion-row:hover .add-suggestion-btn{ opacity: 1; color: var(--brass-bright); }
 
@@ -2281,20 +2289,48 @@
   }
 
   // Suggestions for the bottom of an open playlist: other library tracks not
-  // already in it, biased toward artists already in the playlist — like the
-  // "suggested songs" YT Music appends under a playlist.
-  function getPlaylistSuggestions(pl, limit){
+  // already in it, scored by how well they match the playlist's "vibe" —
+  // shared artists, shared albums, and overlapping words in the title (e.g.
+  // "Live", "Remix", "Acoustic") — like the "suggested songs" YT Music
+  // appends under a playlist. A small random jitter keeps ties from always
+  // resolving the same way, and Refresh excludes what's already been shown.
+  const SUGGESTION_STOPWORDS = new Set(['the','a','an','feat','featuring','ft','official','video','audio','lyric','lyrics','remix','edit','version','with','and','of']);
+  function titleTokens(s){
+    return (s || '').toLowerCase()
+      .replace(/[()\[\]\-_,.'"!?]/g, ' ')
+      .split(/\s+/)
+      .filter(w => w.length > 2 && !SUGGESTION_STOPWORDS.has(w));
+  }
+  function getPlaylistSuggestions(pl, limit, excludeIds){
+    excludeIds = excludeIds || new Set();
     const existing = new Set(pl.trackIds);
-    const playlistArtists = new Set(
-      pl.trackIds.map(trackById).filter(Boolean).map(t => normKey(cleanArtist(t.artist)))
-    );
-    const candidates = tracks.filter(t => !existing.has(t.id));
-    const scored = candidates.map(t => ({
-      t,
-      score: playlistArtists.has(normKey(cleanArtist(t.artist))) ? 1 : 0
-    }));
+    const plTracks = pl.trackIds.map(trackById).filter(Boolean);
+    const artistSet = new Set(plTracks.map(t => normKey(cleanArtist(t.artist))));
+    const albumSet = new Set(plTracks.map(t => (t.album || '').trim().toLowerCase()).filter(Boolean));
+    const wordCounts = new Map();
+    plTracks.forEach(t => titleTokens(t.title).forEach(w => wordCounts.set(w, (wordCounts.get(w) || 0) + 1)));
+
+    const candidates = tracks.filter(t => !existing.has(t.id) && !excludeIds.has(t.id));
+    const scored = candidates.map(t => {
+      let score = 0;
+      if(artistSet.has(normKey(cleanArtist(t.artist)))) score += 3;
+      const alb = (t.album || '').trim().toLowerCase();
+      if(alb && albumSet.has(alb)) score += 2;
+      titleTokens(t.title).forEach(w => { if(wordCounts.has(w)) score += 0.5; });
+      score += Math.random() * 0.4; // jitter: variety on refresh, breaks ties
+      return { t, score };
+    });
     scored.sort((a, b) => b.score - a.score);
     return scored.slice(0, limit).map(s => s.t);
+  }
+
+  // Tracks which suggestions have already been surfaced per playlist, so
+  // hitting Refresh brings up a genuinely different batch instead of the
+  // same tracks reshuffled.
+  const suggestionExclude = new Map(); // playlistId -> Set<trackId>
+  function getSuggestionExcludeSet(plId){
+    if(!suggestionExclude.has(plId)) suggestionExclude.set(plId, new Set());
+    return suggestionExclude.get(plId);
   }
 
   function shuffleArray(arr){
@@ -2364,11 +2400,31 @@
   }
 
   function renderSuggestions(pl){
-    const suggestions = getPlaylistSuggestions(pl, 8);
+    const excludeSet = getSuggestionExcludeSet(pl.id);
+    let suggestions = getPlaylistSuggestions(pl, 8, excludeSet);
+    if(suggestions.length === 0 && excludeSet.size > 0){
+      // Ran out of fresh picks — start the rotation over.
+      excludeSet.clear();
+      suggestions = getPlaylistSuggestions(pl, 8, excludeSet);
+    }
     if(suggestions.length === 0) return;
+
     const header = document.createElement('div');
     header.className = 'suggestions-header';
-    header.textContent = 'Suggested';
+    const label = document.createElement('span');
+    label.textContent = 'Suggested';
+    header.appendChild(label);
+    const refreshBtn = document.createElement('button');
+    refreshBtn.className = 'icon-btn suggestions-refresh-btn';
+    refreshBtn.title = 'Refresh suggestions';
+    refreshBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.3-6.4L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.3 6.4L3 16"/><path d="M3 21v-5h5"/></svg>';
+    refreshBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      refreshBtn.classList.add('spin');
+      suggestions.forEach(t => excludeSet.add(t.id));
+      renderCrate();
+    });
+    header.appendChild(refreshBtn);
     crate.appendChild(header);
     suggestions.forEach(t => renderSuggestionRow(t, crate, pl, suggestions));
   }
@@ -2688,7 +2744,7 @@
     }
     const newTrack = { id: uid(), title: 'Loading title…', artist: '', album: '', art: '', videoId: id, _feedbackTarget: 'upnextAddFeedback' };
     tracks.unshift(newTrack);
-    queue.push(newTrack);
+    queue.splice(current + 1, 0, newTrack);
     if(queuePlaylistId){
       const pl = playlists.find(p => p.id === queuePlaylistId);
       if(pl && !pl.trackIds.includes(newTrack.id)) pl.trackIds.push(newTrack.id);
