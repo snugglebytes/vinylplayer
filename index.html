@@ -356,27 +356,18 @@
   .record.layout-tinted .record-tint{ opacity: 1; mix-blend-mode: normal; }
 
   /* Groove rings — multiplied over the art so ridges stay visible, like the
-     art is printed straight onto the vinyl surface. */
+     art is printed straight onto the vinyl surface. Colored via the
+     --groove-a/--groove-b custom properties (set from the extracted tint in
+     JS) instead of plain black, across all three layouts. */
   .record-grooves{
     position:absolute; inset:0;
     border-radius:50%;
     background:
       repeating-radial-gradient(circle at center,
-        rgba(0,0,0,0.92) 0px, rgba(0,0,0,0.92) 2px,
-        rgba(0,0,0,0.1) 3px, rgba(0,0,0,0.1) 4px);
+        var(--groove-a, rgba(0,0,0,0.92)) 0px, var(--groove-a, rgba(0,0,0,0.92)) 2px,
+        var(--groove-b, rgba(0,0,0,0.1)) 3px, var(--groove-b, rgba(0,0,0,0.1)) 4px);
     mix-blend-mode: multiply;
     pointer-events:none;
-  }
-
-  /* ---- Layout B & C: grooves tinted to the art's/tint's color instead of
-     plain black, so the ridge shadows read as part of the vinyl's color
-     instead of stark black lines cutting across it. ---- */
-  .record.layout-embed .record-grooves,
-  .record.layout-tinted .record-grooves{
-    background:
-      repeating-radial-gradient(circle at center,
-        var(--groove-a, rgba(0,0,0,0.88)) 0px, var(--groove-a, rgba(0,0,0,0.88)) 2px,
-        var(--groove-b, rgba(0,0,0,0.12)) 3px, var(--groove-b, rgba(0,0,0,0.12)) 4px);
   }
 
   .record::after{
@@ -2116,11 +2107,11 @@
   // to the tint's actual lightness rather than crushing the dark one down.)
   function tintedGrooveColors(rgb){
     const { h, s, l } = rgbToHsl(rgb.r, rgb.g, rgb.b);
-    const dark = hslToRgb(h, s, Math.max(l - 0.16, 0.1));
-    const light = hslToRgb(h, s, Math.min(l + 0.08, 0.6));
+    const dark = hslToRgb(h, s, Math.max(l - 0.09, 0.2));
+    const light = hslToRgb(h, s, Math.min(l + 0.14, 0.7));
     return {
-      a: `rgba(${dark.r},${dark.g},${dark.b},0.88)`,
-      b: `rgba(${light.r},${light.g},${light.b},0.4)`
+      a: `rgba(${dark.r},${dark.g},${dark.b},0.6)`,
+      b: `rgba(${light.r},${light.g},${light.b},0.55)`
     };
   }
 
@@ -2171,6 +2162,14 @@
       }
     } else {
       recordArt.style.backgroundImage = art ? `url("${art}")` : 'none';
+      if(art){
+        extractMinorityHue(art, (rgb) => {
+          if(!rgb) return;
+          const grooves = tintedGrooveColors(rgb);
+          record.style.setProperty('--groove-a', grooves.a);
+          record.style.setProperty('--groove-b', grooves.b);
+        });
+      }
     }
   }
 
