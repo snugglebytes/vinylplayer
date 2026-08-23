@@ -320,6 +320,15 @@
     background-position: center;
   }
 
+  /* Layout B: the disc's "tint" is just the album art itself, heavily
+     blurred, showing in the ring outside the enlarged embedded label.
+     Scaled up slightly so the blur doesn't fade the image toward
+     transparent right at the disc's clipped edge. */
+  .record.layout-embed .record-art{
+    filter: blur(18px) saturate(1.15);
+    transform: scale(1.2);
+  }
+
   /* Layout C: the disc itself stays plain dark vinyl (no art printed on
      it — the art shows only on the sleeve peeking out behind) with a
      translucent hue wash laid over it. mix-blend:color keeps the existing
@@ -2098,16 +2107,18 @@
     recordTint.style.backgroundColor = 'transparent';
 
     if(vinylLayout === 'embed'){
+      // The disc's "tint" is just the art itself, blurred via CSS (see
+      // .record.layout-embed .record-art) — no color extraction needed.
       labelArt.style.backgroundImage = art ? `url("${art}")` : 'none';
-      if(art){
-        extractMinorityHue(art, (rgb) => {
-          if(!rgb) return;
-          record.style.setProperty('--groove-a', `rgba(${rgb.r},${rgb.g},${rgb.b},0.85)`);
-          record.style.setProperty('--groove-b', `rgba(${rgb.r},${rgb.g},${rgb.b},0.18)`);
-        });
-      }
+      recordArt.style.backgroundImage = art ? `url("${art}")` : 'none';
     } else if(vinylLayout === 'tinted'){
+      // Put the art on the disc itself (not just the sleeve) so the tint
+      // has actual color/detail to sit on top of instead of the plain dark
+      // fallback — that's what was reading as "leftover black". mix-blend
+      // :color on .record-tint replaces hue/saturation but keeps the art's
+      // own luminosity, so the art stays visible through the tint.
       sleeve.style.backgroundImage = art ? `url("${art}")` : 'none';
+      recordArt.style.backgroundImage = art ? `url("${art}")` : 'none';
       if(art){
         extractMinorityHue(art, (rgb) => {
           if(!rgb) return;
