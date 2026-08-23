@@ -2130,10 +2130,20 @@
     recordTint.style.backgroundColor = 'transparent';
 
     if(vinylLayout === 'embed'){
-      // The disc's "tint" is just the art itself, blurred via CSS (see
-      // .record.layout-embed .record-art) — no color extraction needed.
+      // The disc's fill is the art itself, blurred via CSS (see
+      // .record.layout-embed .record-art). The groove ridges still need
+      // their own color so they read as tinted shadows on top of that
+      // blurred art instead of plain black lines.
       labelArt.style.backgroundImage = art ? `url("${art}")` : 'none';
       recordArt.style.backgroundImage = art ? `url("${art}")` : 'none';
+      if(art){
+        extractMinorityHue(art, (rgb) => {
+          if(!rgb) return;
+          const grooves = tintedGrooveColors(rgb);
+          record.style.setProperty('--groove-a', grooves.a);
+          record.style.setProperty('--groove-b', grooves.b);
+        });
+      }
     } else if(vinylLayout === 'tinted'){
       // Put the art on the disc itself (not just the sleeve) so the tint
       // has actual color/detail to sit on top of instead of the plain dark
