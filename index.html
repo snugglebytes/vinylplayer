@@ -1679,6 +1679,13 @@
           totalTimeEl.textContent = fmt(duration);
           ytPlayer.setVolume(muted ? 0 : volume);
         },
+        onError: () => {
+          // A track failed to load/play (removed, region-locked, etc) —
+          // move on instead of silently going quiet with no recovery.
+          cancelCrossfade();
+          if(queue.length > 1) nextTrack();
+          else setPlaying(false);
+        },
         onStateChange: (e) => {
           if(e.data === YT.PlayerState.ENDED){ handleTrackEnded(); }
         }
@@ -1717,6 +1724,14 @@
       playerVars: { autoplay: 0, controls: 0, disablekb: 1 },
       events: {
         onReady: () => { ytReadyB = true; cb(); },
+        onError: () => {
+          // The upcoming video failed to load/play (removed, region-locked,
+          // etc). Bail out of the crossfade cleanly instead of leaving the
+          // front track's volume stuck mid-ramp.
+          crossfading = false;
+          if(crossfadeInterval){ clearInterval(crossfadeInterval); crossfadeInterval = null; }
+          try{ if(ytReady) ytPlayer.setVolume(muted ? 0 : volume); }catch(e){}
+        },
         onStateChange: (e) => {
           if(e.data === YT.PlayerState.ENDED) handleTrackEnded();
         }
@@ -1736,8 +1751,14 @@
 
   function cancelCrossfade(){
     if(crossfadeInterval){ clearInterval(crossfadeInterval); crossfadeInterval = null; }
-    if(crossfading && ytPlayerB){
-      try{ ytPlayerB.stopVideo(); ytPlayerB.setVolume(muted ? 0 : volume); }catch(e){}
+    if(crossfading){
+      // Whichever player was mid-ramp when this got interrupted, make sure
+      // both land back at the real volume instead of staying stranded
+      // partway through a fade (this was leaving playback silent).
+      try{ if(ytReady) ytPlayer.setVolume(muted ? 0 : volume); }catch(e){}
+      if(ytPlayerB){
+        try{ ytPlayerB.stopVideo(); ytPlayerB.setVolume(muted ? 0 : volume); }catch(e){}
+      }
     }
     crossfading = false;
   }
@@ -1751,8 +1772,18 @@
     const nextT = queue[nextIdx];
     if(!nextT) return;
     crossfading = true;
+    // Safety net: if the back player never becomes ready (slow network, the
+    // video failing to embed, etc), give up on the crossfade instead of
+    // leaving `crossfading` stuck true and the front track silenced.
+    let timedOut = false;
+    const readyTimeout = setTimeout(() => {
+      timedOut = true;
+      crossfading = false;
+      try{ if(ytReady) ytPlayer.setVolume(muted ? 0 : volume); }catch(e){}
+    }, 3000);
     ensureBackPlayer(() => {
-      if(!crossfading) return; // cancelled while the back player was spinning up
+      clearTimeout(readyTimeout);
+      if(timedOut || !crossfading) return; // cancelled or timed out while the back player was spinning up
       ytPlayerB.setVolume(0);
       ytPlayerB.loadVideoById(nextT.videoId);
       ytPlayerB.playVideo();
