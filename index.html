@@ -264,18 +264,21 @@
     display:flex; align-items:center; justify-content:center;
   }
 
-  /* ---- Layout C: album sleeve peeking out from behind the disc. Straightened
-     (no rotation), the disc stays dead-center in the platter-wrap, and the
-     sleeve is anchored to the right so it peeks out from behind the disc on
-     the right side. The whole platter-wrap assembly (disc + tonearm +
-     sleeve, all together) shifts right via `translate` — a standalone
-     property that composes with the spin animation's `transform` instead of
-     clobbering it — so the peeking sleeve has room without the disc itself
-     moving off-center. ---- */
+  /* ---- Layout C: album sleeve peeking out from behind the disc. Sized to
+     match the disc (86% of the panel, same as .record) so it reads as the
+     same record's sleeve, and positioned so only ~20% of it sits behind the
+     disc — the other ~80% is visible, peeking out to the left. Because that
+     much peek pushes the sleeve well past the panel's own left edge (no
+     ancestor clips it), the whole platter-wrap assembly — disc, tonearm,
+     and sleeve together — is shifted right via `translate` (a standalone
+     property that composes with the spin animation's `transform` instead
+     of clobbering it) so the *combined* footprint of sleeve + disc ends up
+     centered in the console, even though the disc itself stays centered
+     within the platter-wrap the whole time. ---- */
   .sleeve{
     position:absolute;
     top: 6%; bottom: 6%;
-    left: 22%; right: -8%;
+    left: -62%; right: 76%;
     border-radius: 5px;
     background-color: #180f0a;
     background-size: cover;
@@ -288,7 +291,7 @@
   }
   .platter-wrap.layout-tinted .sleeve{ opacity: 1; }
   .platter-wrap.layout-tinted{
-    translate: 6% 0;
+    translate: 34.5% 0;
   }
 
   /* Album art printed onto the vinyl surface — fills the circular disc
@@ -340,7 +343,12 @@
     pointer-events:none;
     transition: opacity 0.2s ease;
   }
-  .record.layout-tinted .record-tint{ opacity: 0.85; }
+  /* Layout C: the disc is a flat vinyl-colored surface tinted to the
+     minority-shade color extracted from the art — no art image on the disc
+     itself (only the sleeve peeking out behind shows the actual art).
+     opacity 1 + normal blend so it's a solid fill, not a wash over the dark
+     fallback gradient (which was reading as "leftover black"). */
+  .record.layout-tinted .record-tint{ opacity: 1; mix-blend-mode: normal; }
 
   /* Groove rings — multiplied over the art so ridges stay visible, like the
      art is printed straight onto the vinyl surface. */
@@ -355,9 +363,11 @@
     pointer-events:none;
   }
 
-  /* ---- Layout B: bigger label with album art embedded in it, grooves
-     tinted to the art's overall hue instead of plain black ---- */
-  .record.layout-embed .record-grooves{
+  /* ---- Layout B & C: grooves tinted to the art's/tint's color instead of
+     plain black, so the ridge shadows read as part of the vinyl's color
+     instead of stark black lines cutting across it. ---- */
+  .record.layout-embed .record-grooves,
+  .record.layout-tinted .record-grooves{
     background:
       repeating-radial-gradient(circle at center,
         var(--groove-a, rgba(0,0,0,0.88)) 0px, var(--groove-a, rgba(0,0,0,0.88)) 2px,
@@ -2092,6 +2102,21 @@
     img.src = src;
   }
 
+  // Derives the groove ring's two-tone shadow colors from the extracted
+  // tint instead of plain black — a dark, low-lightness version for the
+  // ridge shadow and a lighter, low-alpha version for the highlight between
+  // ridges — so the shadows read as colored ridges in the vinyl rather than
+  // stark black lines sitting on top of it.
+  function tintedGrooveColors(rgb){
+    const { h, s } = rgbToHsl(rgb.r, rgb.g, rgb.b);
+    const dark = hslToRgb(h, Math.min(s, 0.55), 0.08);
+    const light = hslToRgb(h, Math.min(s, 0.45), 0.32);
+    return {
+      a: `rgba(${dark.r},${dark.g},${dark.b},0.92)`,
+      b: `rgba(${light.r},${light.g},${light.b},0.16)`
+    };
+  }
+
   // Single place that decides where the art goes (full disc / label / sleeve)
   // and, for the layouts that need it, kicks off the groove or vinyl tint
   // color extraction.
@@ -2115,12 +2140,16 @@
       // fallback — that's what was reading as "leftover black". mix-blend
       // :color on .record-tint replaces hue/saturation but keeps the art's
       // own luminosity, so the art stays visible through the tint.
+      // Sleeve gets the actual art; the disc itself stays a flat vinyl
+      // color (the extracted minority-shade tint), no art image.
       sleeve.style.backgroundImage = art ? `url("${art}")` : 'none';
-      recordArt.style.backgroundImage = art ? `url("${art}")` : 'none';
       if(art){
         extractMinorityHue(art, (rgb) => {
           if(!rgb) return;
-          recordTint.style.backgroundColor = `rgba(${rgb.r},${rgb.g},${rgb.b},0.9)`;
+          recordTint.style.backgroundColor = `rgb(${rgb.r},${rgb.g},${rgb.b})`;
+          const grooves = tintedGrooveColors(rgb);
+          record.style.setProperty('--groove-a', grooves.a);
+          record.style.setProperty('--groove-b', grooves.b);
         });
       }
     } else {
