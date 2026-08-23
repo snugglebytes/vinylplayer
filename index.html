@@ -265,15 +265,17 @@
   }
 
   /* ---- Layout C: album sleeve peeking out from behind the disc. Straightened
-     (no rotation) and pinned to the left edge of the square platter-wrap so
-     it peeks out on the left; the record itself shifts right (via the
-     `translate` property below, which composes with the spin animation's
-     `transform` instead of clobbering it) to make room without leaving the
-     panel. ---- */
+     (no rotation), the disc stays dead-center in the platter-wrap, and the
+     sleeve is anchored to the right so it peeks out from behind the disc on
+     the right side. The whole platter-wrap assembly (disc + tonearm +
+     sleeve, all together) shifts right via `translate` — a standalone
+     property that composes with the spin animation's `transform` instead of
+     clobbering it — so the peeking sleeve has room without the disc itself
+     moving off-center. ---- */
   .sleeve{
     position:absolute;
     top: 6%; bottom: 6%;
-    left: 0%; right: 12%;
+    left: 22%; right: -8%;
     border-radius: 5px;
     background-color: #180f0a;
     background-size: cover;
@@ -285,12 +287,8 @@
     z-index: 1;
   }
   .platter-wrap.layout-tinted .sleeve{ opacity: 1; }
-  /* Nudge the disc right so the straightened sleeve reads as "peeking" past
-     its left edge, instead of sitting dead-center on top of it. Stays
-     within the 7% margin the record already has on each side when centered
-     (86% wide in a 100% panel), so it never crosses the panel edge. */
-  .platter-wrap.layout-tinted .record{
-    translate: 7% 0;
+  .platter-wrap.layout-tinted{
+    translate: 6% 0;
   }
 
   /* Album art printed onto the vinyl surface — fills the circular disc
