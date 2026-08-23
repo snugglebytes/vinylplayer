@@ -1024,7 +1024,7 @@
   .edit-field{ margin-bottom: 12px; }
   .edit-field-row{ display:flex; gap: 10px; margin-bottom: 12px; }
   .edit-field-row .edit-field{ margin-bottom: 0; }
-  .edit-field-row .edit-field.album-field{ flex: 1 1 auto; min-width: 0; }
+  .edit-field-row .edit-field.album-field{ flex: 1 1 auto; min-width: 0; position: relative; }
   .edit-field-row .edit-field.track-field{ flex: 0 0 76px; }
   .edit-field-row .edit-field.track-field input[type="number"]{
     width: 100%;
@@ -1090,6 +1090,33 @@
   }
   .edit-field input[type="text"]:focus{ border-color: var(--brass); }
   .edit-field input[type="text"]::placeholder{ color: rgba(244,234,217,0.35); }
+
+  /* ---- Album smart-suggestions dropdown (edit modal) ---- */
+  .album-suggest{
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0; right: 0;
+    z-index: 5;
+    background: linear-gradient(170deg, var(--walnut-light), var(--walnut-dark));
+    border: 1px solid rgba(201,154,84,0.3);
+    border-radius: 8px;
+    box-shadow: 0 12px 24px rgba(0,0,0,0.5);
+    padding: 4px;
+    display: none;
+    max-height: 160px;
+    overflow-y: auto;
+  }
+  .album-suggest.show{ display:block; }
+  .album-suggest .as-item{
+    padding: 7px 9px;
+    border-radius: 6px;
+    font-size: 12.5px;
+    color: var(--cream);
+    cursor: pointer;
+    white-space: nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .album-suggest .as-item span{ color: rgba(244,234,217,0.45); font-size: 10.5px; }
+  .album-suggest .as-item:hover, .album-suggest .as-item.active{ background: rgba(244,234,217,0.08); }
 
   .edit-art-row{ display:flex; gap:10px; align-items:flex-start; }
   .edit-art-preview{
@@ -1198,8 +1225,8 @@
                 <path id="labelArcBottom" d="M 14.3,63 A 38,38 0 0 0 85.7,63" fill="none"/>
               </defs>
               <circle cx="50" cy="50" r="49" class="label-face-shade"/>
-              <text class="label-album-text" text-anchor="middle">
-                <textPath href="#labelArcTop" xlink:href="#labelArcTop" startOffset="50%" id="labelTitle">Loading…</textPath>
+              <text class="label-album-text" text-anchor="start">
+                <textPath href="#labelArcTop" xlink:href="#labelArcTop" startOffset="0%" id="labelTitle">Loading…</textPath>
               </text>
               <text class="label-artist-text" text-anchor="middle">
                 <textPath href="#labelArcBottom" xlink:href="#labelArcBottom" startOffset="50%" id="labelArtistText">—</textPath>
@@ -1332,6 +1359,9 @@
     <button class="sort-btn" id="sortBtn" title="Smart sort">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M3 6h13M3 12h9M3 18h5M17 4v14m0 0l-3-3m3 3l3-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
     </button>
+    <button class="sort-btn" id="albumSortBtn" title="Sort albums" style="display:none;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M3 6h13M3 12h9M3 18h5M17 4v14m0 0l-3-3m3 3l3-3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
     <button class="sidebar-close" id="extClose" title="Close">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>
     </button>
@@ -1339,6 +1369,12 @@
   <div class="add-row" id="extAddRow">
     <input type="text" id="addUrlInput" placeholder="Paste a YouTube link…" />
     <button id="addBtn" title="Add track">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+    </button>
+  </div>
+  <div class="add-row" id="albumAddRow" style="display:none;">
+    <input type="text" id="albumAddUrlInput" placeholder="Paste a YouTube link to add to this album…" />
+    <button id="albumAddBtn" title="Add track to album">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
     </button>
   </div>
@@ -1353,6 +1389,7 @@
 
 <div class="playlist-popover" id="playlistPopover"></div>
 <div class="track-context-menu" id="trackContextMenu"></div>
+<div class="track-context-menu" id="albumSortMenu"></div>
 
 <div class="modal-overlay" id="editOverlay">
   <div class="edit-modal">
@@ -1373,7 +1410,8 @@
     <div class="edit-field-row">
       <div class="edit-field album-field">
         <label for="editAlbumInput">Album</label>
-        <input type="text" id="editAlbumInput" placeholder="Album name">
+        <input type="text" id="editAlbumInput" placeholder="Album name" autocomplete="off">
+        <div class="album-suggest" id="albumSuggest"></div>
       </div>
       <div class="edit-field track-field">
         <label for="editTrackInput" title="Sets the song's position within its album">Track #</label>
@@ -1625,7 +1663,7 @@
       return;
     }
     const albumName = (t.album || '').trim();
-    labelTitle.textContent = truncateForLabel(albumName || t.title, 24);
+    labelTitle.textContent = truncateForLabel(albumName || t.title, 22);
     labelArtistText.textContent = truncateForLabel(cleanArtist(t.artist), 30) || '—';
   }
 
@@ -1746,8 +1784,10 @@
   const navAllSongs = document.getElementById('navAllSongs');
   const extTitle = document.getElementById('extTitle');
   const extAddRow = document.getElementById('extAddRow');
+  const albumAddRow = document.getElementById('albumAddRow');
   const extPlayBtn = document.getElementById('extPlayBtn');
   const extQueueBtn = document.getElementById('extQueueBtn');
+  const albumSortBtn = document.getElementById('albumSortBtn');
 
   let extView = null; // null | 'all' | playlistId
 
@@ -1764,6 +1804,7 @@
   function albumKey(album, artist){
     return normKey(album) + '|||' + normKey(cleanArtist(artist));
   }
+  let albumSortMode = 'az'; // az | za | artist  (applies to the Albums view)
   function getAlbums(){
     const map = new Map();
     tracks.forEach(t => {
@@ -1773,7 +1814,11 @@
       if(!map.has(key)) map.set(key, { key, name, artist: cleanArtist(t.artist), tracks: [] });
       map.get(key).tracks.push(t);
     });
-    return Array.from(map.values()).sort((a,b) => a.name.localeCompare(b.name));
+    const list = Array.from(map.values());
+    if(albumSortMode === 'za') list.sort((a,b) => b.name.localeCompare(a.name));
+    else if(albumSortMode === 'artist') list.sort((a,b) => a.artist.localeCompare(b.artist) || a.name.localeCompare(b.name));
+    else list.sort((a,b) => a.name.localeCompare(b.name));
+    return list;
   }
   function albumArtFor(al){
     const withArt = al.tracks.find(t => t.art);
@@ -1913,14 +1958,18 @@
     if(view === 'all'){
       extTitle.textContent = 'All Songs';
       extAddRow.style.display = 'flex';
+      albumAddRow.style.display = 'none';
       sortBtn.style.display = 'flex';
+      albumSortBtn.style.display = 'none';
       extPlayBtn.style.display = 'none';
       extQueueBtn.style.display = 'none';
       extSearchInput.placeholder = 'Search your songs…';
     } else if(view === 'albums'){
       extTitle.textContent = 'Albums';
       extAddRow.style.display = 'none';
+      albumAddRow.style.display = 'none';
       sortBtn.style.display = 'none';
+      albumSortBtn.style.display = 'flex';
       extPlayBtn.style.display = 'none';
       extQueueBtn.style.display = 'none';
       extSearchInput.placeholder = 'Search albums…';
@@ -1928,14 +1977,20 @@
       const al = getAlbums().find(a => a.key === view.slice('album:'.length));
       extTitle.textContent = al ? al.name : 'Album';
       extAddRow.style.display = 'none';
+      albumAddRow.style.display = al ? 'flex' : 'none';
       sortBtn.style.display = 'none';
-      extPlayBtn.style.display = 'none';
-      extQueueBtn.style.display = 'none';
+      albumSortBtn.style.display = 'none';
+      extPlayBtn.style.display = al ? 'flex' : 'none';
+      extQueueBtn.style.display = al ? 'flex' : 'none';
+      extPlayBtn.title = 'Play album';
+      extQueueBtn.title = 'Add album to queue';
       extSearchInput.placeholder = 'Search this album…';
     } else if(view === 'artists'){
       extTitle.textContent = 'Artists';
       extAddRow.style.display = 'none';
+      albumAddRow.style.display = 'none';
       sortBtn.style.display = 'none';
+      albumSortBtn.style.display = 'none';
       extPlayBtn.style.display = 'none';
       extQueueBtn.style.display = 'none';
       extSearchInput.placeholder = 'Search artists…';
@@ -1943,17 +1998,25 @@
       const ar = getArtists().find(a => a.key === view.slice('artist:'.length));
       extTitle.textContent = ar ? ar.name : 'Artist';
       extAddRow.style.display = 'none';
+      albumAddRow.style.display = 'none';
       sortBtn.style.display = 'none';
-      extPlayBtn.style.display = 'none';
-      extQueueBtn.style.display = 'none';
+      albumSortBtn.style.display = 'none';
+      extPlayBtn.style.display = ar ? 'flex' : 'none';
+      extQueueBtn.style.display = ar ? 'flex' : 'none';
+      extPlayBtn.title = 'Play artist';
+      extQueueBtn.title = 'Add artist to queue';
       extSearchInput.placeholder = 'Search this artist…';
     } else {
       const pl = playlists.find(p => p.id === view);
       extTitle.textContent = pl ? pl.name : 'Playlist';
       extAddRow.style.display = 'none';
+      albumAddRow.style.display = 'none';
       sortBtn.style.display = 'none';
+      albumSortBtn.style.display = 'none';
       extPlayBtn.style.display = 'flex';
       extQueueBtn.style.display = 'flex';
+      extPlayBtn.title = 'Play playlist';
+      extQueueBtn.title = 'Add to queue';
       extSearchInput.placeholder = 'Search this playlist…';
     }
     renderPlaylistNav();
@@ -1986,10 +2049,27 @@
     renderCrate();
   });
   extPlayBtn.addEventListener('click', () => {
+    if(extView && (extView.startsWith('album:') || extView.startsWith('artist:'))){
+      const list = currentExtTracks();
+      if(list.length === 0) return;
+      const label = extTitle.textContent;
+      setQueue(list, label);
+      current = 0;
+      renderUpNext();
+      loadCurrent(true);
+      return;
+    }
     const pl = playlists.find(p => p.id === extView);
     if(pl) playPlaylist(pl);
   });
   extQueueBtn.addEventListener('click', () => {
+    if(extView && (extView.startsWith('album:') || extView.startsWith('artist:'))){
+      const list = currentExtTracks();
+      const existingIds = new Set(queue.map(t => t.id));
+      list.forEach(t => { if(!existingIds.has(t.id)){ queue.push(t); existingIds.add(t.id); } });
+      renderUpNext();
+      return;
+    }
     const pl = playlists.find(p => p.id === extView);
     if(pl) addPlaylistToQueue(pl);
   });
@@ -2138,13 +2218,30 @@
         <div class="t">${escapeHtml(al.name)}</div>
         <div class="a">${escapeHtml(al.artist)}${al.artist ? ' · ' : ''}${al.tracks.length} song${al.tracks.length === 1 ? '' : 's'}</div>
       </div>
+      <button class="icon-btn album-play-btn" title="Play album">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </button>
       <button class="icon-btn album-edit-btn" title="Edit album">
         ${ELLIPSIS_ICON}
       </button>
       <div class="album-art-thumb"${art ? ` style="background-image:url('${art}')"` : ''}></div>
     `;
+    const sortedTracks = () => al.tracks.slice().map((t,i)=>({t,i})).sort((a,b)=>{
+      const an = Number.isFinite(a.t.trackNo) ? a.t.trackNo : Infinity;
+      const bn = Number.isFinite(b.t.trackNo) ? b.t.trackNo : Infinity;
+      return an !== bn ? an - bn : a.i - b.i;
+    }).map(x=>x.t);
     row.querySelector('.album-meta').addEventListener('click', () => openExtPanel('album:' + al.key));
     row.querySelector('.album-art-thumb').addEventListener('click', () => openExtPanel('album:' + al.key));
+    row.querySelector('.album-play-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      const list = sortedTracks();
+      if(list.length === 0) return;
+      setQueue(list, al.name);
+      current = 0;
+      renderUpNext();
+      loadCurrent(true);
+    });
     row.querySelector('.album-edit-btn').addEventListener('click', (e) => { e.stopPropagation(); openAlbumEditModal(al.key); });
     container.appendChild(row);
   }
@@ -2158,9 +2255,20 @@
         <div class="t">${escapeHtml(ar.name)}</div>
         <div class="a">${ar.tracks.length} song${ar.tracks.length === 1 ? '' : 's'}</div>
       </div>
+      <button class="icon-btn artist-play-btn" title="Play artist">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+      </button>
       <div class="album-art-thumb"${art ? ` style="background-image:url('${art}')"` : ''}></div>
     `;
     row.addEventListener('click', () => openExtPanel('artist:' + ar.key));
+    row.querySelector('.artist-play-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      if(ar.tracks.length === 0) return;
+      setQueue(ar.tracks, ar.name);
+      current = 0;
+      renderUpNext();
+      loadCurrent(true);
+    });
     container.appendChild(row);
   }
 
@@ -2612,12 +2720,14 @@
   // (the same info YT Music itself is generated from — usually the channel
   // name and thumbnail of the official upload). It's a good starting guess,
   // not guaranteed to match, so every field can be fixed via Edit afterward.
-  function fetchTitleFor(track){
+  function fetchTitleFor(track, opts){
+    opts = opts || {};
     fetch(`https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v=${track.videoId}&format=json`)
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(data => {
         track.title = data.title || track.title;
-        track.artist = cleanArtist(data.author_name || track.artist);
+        track.artist = opts.keepArtist || cleanArtist(data.author_name || track.artist);
+        if(opts.keepAlbum) track.album = opts.keepAlbum;
         const artPromise = track.art ? Promise.resolve(track.art) : fetchBestThumbnail(track.videoId);
         return artPromise.then((artUrl) => {
           if(!track.art) track.art = artUrl;
@@ -2678,6 +2788,72 @@
     sortMode = sortMode === 'added' ? 'artist' : sortMode === 'artist' ? 'album' : 'added';
     updateSortUI();
     renderCrate();
+  });
+
+  // ---------- Albums view sort menu (A–Z / Z–A / By Artist) ----------
+  const albumSortMenu = document.getElementById('albumSortMenu');
+  const ALBUM_SORT_OPTIONS = [
+    { key:'az', label:'A → Z' },
+    { key:'za', label:'Z → A' },
+    { key:'artist', label:'By Artist' }
+  ];
+  function closeAlbumSortMenu(){ albumSortMenu.classList.remove('show'); }
+  albumSortBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    closeTrackContextMenu();
+    albumSortMenu.innerHTML = ALBUM_SORT_OPTIONS.map(o => `
+      <div class="tcm-item" data-sort="${o.key}">
+        <div class="tcm-icon">${albumSortMode === o.key ? '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg>' : ''}</div>
+        <div class="tcm-label">${o.label}</div>
+      </div>
+    `).join('');
+    albumSortMenu.querySelectorAll('.tcm-item').forEach(el => {
+      el.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        albumSortMode = el.getAttribute('data-sort');
+        renderCrate();
+        closeAlbumSortMenu();
+      });
+    });
+    const rect = albumSortBtn.getBoundingClientRect();
+    albumSortMenu.style.top = (rect.bottom + 6) + 'px';
+    albumSortMenu.style.left = Math.min(rect.left, window.innerWidth - 230) + 'px';
+    albumSortMenu.classList.add('show');
+  });
+  document.addEventListener('click', (e) => {
+    if(!albumSortMenu.contains(e.target) && e.target !== albumSortBtn && !albumSortBtn.contains(e.target)){
+      closeAlbumSortMenu();
+    }
+  });
+
+  // ---------- Add track directly into the currently-open album ----------
+  function addTrackFromUrlToAlbum(){
+    if(!extView || !extView.startsWith('album:')) return;
+    const al = getAlbums().find(a => a.key === extView.slice('album:'.length));
+    if(!al) return;
+    const input = document.getElementById('albumAddUrlInput');
+    const id = extractVideoId(input.value);
+    if(!id){
+      input.style.borderColor = 'var(--label-red)';
+      setTimeout(() => { input.style.borderColor = ''; }, 1200);
+      return;
+    }
+    const existingByVideo = tracks.find(t => t.videoId === id);
+    if(existingByVideo){
+      showAddFeedback(`Already in your library — "${existingByVideo.title}"${cleanArtist(existingByVideo.artist) ? ' by ' + cleanArtist(existingByVideo.artist) : ''}.`);
+      input.value = '';
+      return;
+    }
+    const newTrack = { id: uid(), title: 'Loading title…', artist: al.artist, album: al.name, art: '', videoId: id, _feedbackTarget: 'addFeedback' };
+    tracks.unshift(newTrack);
+    saveTracks();
+    renderCrate(); renderPlaylistNav();
+    input.value = '';
+    fetchTitleFor(newTrack, { keepAlbum: al.name, keepArtist: al.artist });
+  }
+  document.getElementById('albumAddBtn').addEventListener('click', addTrackFromUrlToAlbum);
+  document.getElementById('albumAddUrlInput').addEventListener('keydown', (e) => {
+    if(e.key === 'Enter') addTrackFromUrlToAlbum();
   });
 
   // ---------- Playback core ----------
@@ -2917,7 +3093,59 @@
     editOverlay.classList.remove('show');
     editingTrackId = null;
     editingArtData = '';
+    closeAlbumSuggest();
   }
+
+  // ---------- Smart album suggestions (matched against the typed artist) ----------
+  const albumSuggest = document.getElementById('albumSuggest');
+  function closeAlbumSuggest(){ albumSuggest.classList.remove('show'); }
+  function albumSuggestionsFor(query, artistTyped){
+    const q = query.trim().toLowerCase();
+    const artistKey = normKey(cleanArtist(artistTyped));
+    const seen = new Map(); // album name (lowercased) -> { name, artist }
+    tracks.forEach(t => {
+      const name = (t.album || '').trim();
+      if(!name) return;
+      if(t.id === editingTrackId) return;
+      const key = name.toLowerCase();
+      if(seen.has(key)) return;
+      const trackArtistKey = normKey(cleanArtist(t.artist));
+      // Prioritize albums by the same artist that's currently typed; if no
+      // artist is typed yet, fall back to matching against any album.
+      if(artistKey && trackArtistKey !== artistKey) return;
+      if(q && !key.includes(q)) return;
+      seen.set(key, { name, artist: cleanArtist(t.artist) });
+    });
+    return Array.from(seen.values())
+      .sort((a, b) => {
+        const aStarts = a.name.toLowerCase().startsWith(q) ? 0 : 1;
+        const bStarts = b.name.toLowerCase().startsWith(q) ? 0 : 1;
+        return aStarts - bStarts || a.name.localeCompare(b.name);
+      })
+      .slice(0, 6);
+  }
+  function renderAlbumSuggestions(){
+    const query = editAlbumInput.value;
+    if(!query.trim()){ closeAlbumSuggest(); return; }
+    const results = albumSuggestionsFor(query, editArtistInput.value);
+    if(results.length === 0){ closeAlbumSuggest(); return; }
+    albumSuggest.innerHTML = results.map(r => `
+      <div class="as-item" data-name="${escapeHtml(r.name)}">${escapeHtml(r.name)}${r.artist ? ` <span>· ${escapeHtml(r.artist)}</span>` : ''}</div>
+    `).join('');
+    albumSuggest.querySelectorAll('.as-item').forEach(el => {
+      el.addEventListener('mousedown', (e) => {
+        // mousedown (not click) so this fires before the input's blur closes the list
+        e.preventDefault();
+        editAlbumInput.value = el.getAttribute('data-name');
+        closeAlbumSuggest();
+      });
+    });
+    albumSuggest.classList.add('show');
+  }
+  editAlbumInput.addEventListener('input', renderAlbumSuggestions);
+  editAlbumInput.addEventListener('focus', renderAlbumSuggestions);
+  editArtistInput.addEventListener('input', () => { if(document.activeElement === editAlbumInput) renderAlbumSuggestions(); });
+  editAlbumInput.addEventListener('blur', () => closeAlbumSuggest());
 
   editArtUrlInput.addEventListener('input', () => {
     editingArtData = '';
