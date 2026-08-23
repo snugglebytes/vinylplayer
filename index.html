@@ -264,23 +264,34 @@
     display:flex; align-items:center; justify-content:center;
   }
 
-  /* ---- Layout C: album sleeve peeking out from behind the disc. Sized to
-     the square platter-wrap and rotated slightly so its corners show past
-     the circular record above it. ---- */
+  /* ---- Layout C: album sleeve peeking out from behind the disc. Straightened
+     (no rotation) and pinned to the left edge of the square platter-wrap so
+     it peeks out on the left; the record itself shifts right (via the
+     `translate` property below, which composes with the spin animation's
+     `transform` instead of clobbering it) to make room without leaving the
+     panel. ---- */
   .sleeve{
-    position:absolute; inset: 3%;
+    position:absolute;
+    top: 6%; bottom: 6%;
+    left: 0%; right: 12%;
     border-radius: 5px;
     background-color: #180f0a;
     background-size: cover;
     background-position: center;
     box-shadow: 0 14px 30px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(0,0,0,0.5);
-    transform: rotate(-6deg);
     opacity: 0;
     pointer-events: none;
-    transition: opacity 0.2s ease;
+    transition: opacity 0.2s ease, left 0.2s ease, right 0.2s ease;
     z-index: 1;
   }
   .platter-wrap.layout-tinted .sleeve{ opacity: 1; }
+  /* Nudge the disc right so the straightened sleeve reads as "peeking" past
+     its left edge, instead of sitting dead-center on top of it. Stays
+     within the 7% margin the record already has on each side when centered
+     (86% wide in a 100% panel), so it never crosses the panel edge. */
+  .platter-wrap.layout-tinted .record{
+    translate: 7% 0;
+  }
 
   /* Album art printed onto the vinyl surface — fills the circular disc
      (cropped, no letterboxed black edges) with the groove texture
@@ -2027,6 +2038,52 @@
     img.onerror = () => cb(null);
     img.src = src;
   }
+  // Buckets the art's pixels into a coarse color histogram and returns the
+  // *least* common bucket instead of the average — a minority shade that
+  // still genuinely appears in the art (so it stays cohesive with it), but
+  // reads as a distinct accent against the dominant tones printed on the
+  // sleeve/label (so the vinyl contrasts rather than blends in). Buckets
+  // under ~1% of sampled pixels are treated as noise/outliers and skipped
+  // so a single stray pixel can't hijack the result.
+  function extractMinorityHue(src, cb){
+    if(!src){ cb(null); return; }
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      try{
+        const size = 32;
+        const c = document.createElement('canvas');
+        c.width = size; c.height = size;
+        const ctx = c.getContext('2d');
+        ctx.drawImage(img, 0, 0, size, size);
+        const data = ctx.getImageData(0, 0, size, size).data;
+        const buckets = new Map(); // quantized rgb key -> accumulated color + count
+        const shift = 5; // 8 levels per channel keeps buckets meaningful, not per-pixel-unique
+        let sampled = 0;
+        for(let i = 0; i < data.length; i += 4){
+          if(data[i + 3] < 128) continue; // skip transparent pixels
+          const r = data[i], g = data[i + 1], b = data[i + 2];
+          const key = (r >> shift) + '_' + (g >> shift) + '_' + (b >> shift);
+          let e = buckets.get(key);
+          if(!e){ e = { r: 0, g: 0, b: 0, count: 0 }; buckets.set(key, e); }
+          e.r += r; e.g += g; e.b += b; e.count++;
+          sampled++;
+        }
+        const entries = Array.from(buckets.values());
+        if(entries.length === 0 || sampled === 0){ cb(null); return; }
+        const minCount = Math.max(2, Math.floor(sampled * 0.01));
+        let candidates = entries.filter(e => e.count >= minCount);
+        if(candidates.length === 0) candidates = entries; // everything was noise-sized, use it anyway
+        candidates.sort((a, b) => a.count - b.count);
+        const pick = candidates[0];
+        cb(vividHueFromRgb(pick.r / pick.count, pick.g / pick.count, pick.b / pick.count));
+      }catch(e){
+        cb(null); // tainted canvas (cross-origin image with no CORS headers), fall back to default
+      }
+    };
+    img.onerror = () => cb(null);
+    img.src = src;
+  }
 
   // Single place that decides where the art goes (full disc / label / sleeve)
   // and, for the layouts that need it, kicks off the groove or vinyl tint
@@ -2043,7 +2100,7 @@
     if(vinylLayout === 'embed'){
       labelArt.style.backgroundImage = art ? `url("${art}")` : 'none';
       if(art){
-        extractArtHue(art, (rgb) => {
+        extractMinorityHue(art, (rgb) => {
           if(!rgb) return;
           record.style.setProperty('--groove-a', `rgba(${rgb.r},${rgb.g},${rgb.b},0.85)`);
           record.style.setProperty('--groove-b', `rgba(${rgb.r},${rgb.g},${rgb.b},0.18)`);
@@ -2052,7 +2109,7 @@
     } else if(vinylLayout === 'tinted'){
       sleeve.style.backgroundImage = art ? `url("${art}")` : 'none';
       if(art){
-        extractArtHue(art, (rgb) => {
+        extractMinorityHue(art, (rgb) => {
           if(!rgb) return;
           recordTint.style.backgroundColor = `rgba(${rgb.r},${rgb.g},${rgb.b},0.9)`;
         });
