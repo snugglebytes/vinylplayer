@@ -313,6 +313,10 @@
 
   .record.spinning{ animation-play-state: running; }
 
+  /* Layout C: the disc itself is 15% see-through so the sleeve peeking
+     out behind it reads as layered underneath, not just beside it. */
+  .record.layout-tinted{ opacity: 0.85; }
+
   .record-art{
     position:absolute; inset:0;
     border-radius:50%;
