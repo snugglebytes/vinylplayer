@@ -2108,17 +2108,19 @@
   }
 
   // Derives the groove ring's two-tone shadow colors from the extracted
-  // tint instead of plain black — a dark, low-lightness version for the
-  // ridge shadow and a lighter, low-alpha version for the highlight between
-  // ridges — so the shadows read as colored ridges in the vinyl rather than
-  // stark black lines sitting on top of it.
+  // tint — a shade a bit darker than the tint for the ridge line, and a
+  // shade a bit lighter for the gap between ridges — so grooves read as a
+  // subtle shadow/highlight *of the vinyl's own color*, not near-black
+  // lines. (Near-black here would still render as black once the multiply
+  // blend mode is applied, regardless of hue, so we keep both shades close
+  // to the tint's actual lightness rather than crushing the dark one down.)
   function tintedGrooveColors(rgb){
-    const { h, s } = rgbToHsl(rgb.r, rgb.g, rgb.b);
-    const dark = hslToRgb(h, Math.min(s, 0.55), 0.08);
-    const light = hslToRgb(h, Math.min(s, 0.45), 0.32);
+    const { h, s, l } = rgbToHsl(rgb.r, rgb.g, rgb.b);
+    const dark = hslToRgb(h, s, Math.max(l - 0.16, 0.1));
+    const light = hslToRgb(h, s, Math.min(l + 0.08, 0.6));
     return {
-      a: `rgba(${dark.r},${dark.g},${dark.b},0.92)`,
-      b: `rgba(${light.r},${light.g},${light.b},0.16)`
+      a: `rgba(${dark.r},${dark.g},${dark.b},0.88)`,
+      b: `rgba(${light.r},${light.g},${light.b},0.4)`
     };
   }
 
