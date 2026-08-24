@@ -2035,8 +2035,16 @@
   // Pulls the average color out of the art, then pushes it to a punchier
   // saturation/lightness so pale or muddy covers still read as a clear hue
   // on the ridges instead of going gray.
+  //
+  // Near-black/near-gray source colors don't get this treatment: their tiny
+  // remaining hue is usually just compression noise, not a real color, and
+  // forcing it up to 50%+ saturation turned black album art into a visibly
+  // pink/red/purple-tinted disc. Those stay desaturated instead.
   function vividHueFromRgb(r, g, b){
     const { h, s, l } = rgbToHsl(r, g, b);
+    if(s < 0.08 || l < 0.06){
+      return hslToRgb(h, s, Math.min(Math.max(l, 0.18), 0.42));
+    }
     return hslToRgb(h, Math.max(s, 0.5), Math.min(Math.max(l, 0.32), 0.58));
   }
   function extractArtHue(src, cb){
