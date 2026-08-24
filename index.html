@@ -2482,6 +2482,12 @@
     scheduleShellShift();
   }
   function openExtPanel(view){
+    // The ext panel is nested inside the main sidebar, so if it's opened
+    // from somewhere the sidebar isn't already showing (e.g. "Go to
+    // Album/Artist" from the Up Next queue in the console), the sidebar
+    // itself needs to open too — otherwise it's still translated
+    // off-screen and the ext panel renders invisibly inside it.
+    if(!sidebar.classList.contains('open')) openSidebar();
     // Only the transition from closed -> open actually moves the panel
     // (and therefore the console). Switching views while it's already
     // open just swaps its content in place, so skip re-shifting the
@@ -3116,7 +3122,9 @@
     album: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/></svg>',
     artist: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>',
     trash: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>',
-    queueRemove: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h13M3 12h13M3 18h7"/><path d="M15 15l6 6M21 15l-6 6"/></svg>'
+    queueRemove: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h13M3 12h13M3 18h7"/><path d="M15 15l6 6M21 15l-6 6"/></svg>',
+    moveTop: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M6 11l6-6 6 6"/><path d="M4 3h16"/></svg>',
+    moveBottom: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M18 13l-6 6-6-6"/><path d="M4 21h16"/></svg>'
   };
 
   // Insert a track right after the currently-playing one; if it's already
@@ -3145,6 +3153,25 @@
     renderUpNext();
     if(queue[current]) loadCurrent(false);
   }
+  // Move an already-queued track to sit right after the currently-playing
+  // one ("top" of what's still coming up) or to the very end ("bottom").
+  // The now-playing track itself can't be moved out from under itself.
+  function moveToTopOfQueue(trackId){
+    const idx = queue.findIndex(q => q.id === trackId);
+    if(idx === -1 || idx === current) return;
+    const [t] = queue.splice(idx, 1);
+    if(idx < current) current -= 1;
+    queue.splice(current + 1, 0, t);
+    renderUpNext();
+  }
+  function moveToBottomOfQueue(trackId){
+    const idx = queue.findIndex(q => q.id === trackId);
+    if(idx === -1 || idx === current) return;
+    const [t] = queue.splice(idx, 1);
+    if(idx < current) current -= 1;
+    queue.push(t);
+    renderUpNext();
+  }
 
   let tcmCurrentTrack = null;
   let tcmKeyHandler = null;
@@ -3165,6 +3192,12 @@
       items.push({ key:'q', label:'Add to Queue', shortcut:'Q', icon:TCM_ICONS.queue, action: () => addTrackToQueue(t) });
     }
     items.push({ key:'n', label:'Play Next', shortcut:'N', icon:TCM_ICONS.playNext, action: () => playNextTrack(t) });
+    const inQueue = queue.some(q => q.id === t.id);
+    const isNowPlaying = queue[current] && queue[current].id === t.id;
+    if(source === 'upnext' && inQueue && !isNowPlaying){
+      items.push({ key:'t', label:'Move to Top of Queue', shortcut:'T', icon:TCM_ICONS.moveTop, action: () => moveToTopOfQueue(t.id) });
+      items.push({ key:'b', label:'Move to Bottom of Queue', shortcut:'B', icon:TCM_ICONS.moveBottom, action: () => moveToBottomOfQueue(t.id) });
+    }
     items.push({ key:'e', label:'Edit', shortcut:'E', icon:TCM_ICONS.edit, action: () => openEditModal(t.id) });
     items.push({ key:'p', label:'Add to Playlist', shortcut:'P', icon:TCM_ICONS.playlist, action: (e) => showPlaylistPopover(anchor, t.id) });
     items.push({ sep:true });
