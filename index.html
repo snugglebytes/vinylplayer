@@ -2530,6 +2530,7 @@
     extSearchTerm = '';
     extSearchInput.value = '';
     suggestSearchTerm = '';
+    suggestSearchFocused = false;
     renderPlaylistNav();
     scheduleShellShift();
   }
@@ -2552,6 +2553,7 @@
     extSearchTerm = '';
     extSearchInput.value = '';
     suggestSearchTerm = '';
+    suggestSearchFocused = false;
     if(view === 'all'){
       extTitle.textContent = 'All Songs';
       extAddRow.style.display = 'flex';
@@ -2630,6 +2632,7 @@
     extSearchTerm = '';
     extSearchInput.value = '';
     suggestSearchTerm = '';
+    suggestSearchFocused = false;
     renderPlaylistNav();
     scheduleShellShift();
   }
@@ -3012,6 +3015,12 @@
   // batch of auto-suggestions. Resets whenever the panel is opened/closed
   // or the playlist view changes, same as the main ext search.
   let suggestSearchTerm = '';
+  // Tracked separately from document.activeElement: renderCrate() rebuilds
+  // the whole crate (including this input) on every keystroke, and by the
+  // time the new input exists the old one has already been removed from
+  // the DOM — which silently blurs it, so document.activeElement no longer
+  // points at it. This flag survives that rebuild so focus can be restored.
+  let suggestSearchFocused = false;
 
   function shuffleArray(arr){
     const a = arr.slice();
@@ -3105,13 +3114,17 @@
     `;
     crate.appendChild(searchRow);
     const searchInput = searchRow.querySelector('#suggestSearchInput');
+    searchInput.addEventListener('focus', () => { suggestSearchFocused = true; });
+    searchInput.addEventListener('blur', () => { suggestSearchFocused = false; });
     searchInput.addEventListener('input', () => {
       suggestSearchTerm = searchInput.value.trim().toLowerCase();
       renderCrate();
     });
-    // Keep focus/caret when re-rendering as the user types.
-    if(document.activeElement && document.activeElement.id === 'suggestSearchInput'){
-      requestAnimationFrame(() => { searchInput.focus(); const v = searchInput.value; searchInput.setSelectionRange(v.length, v.length); });
+    // Restore focus/caret across the rebuild triggered by the input above.
+    if(suggestSearchFocused){
+      searchInput.focus();
+      const v = searchInput.value;
+      searchInput.setSelectionRange(v.length, v.length);
     }
 
     if(suggestSearchTerm){
