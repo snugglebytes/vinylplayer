@@ -3115,7 +3115,8 @@
     playlist: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h13M3 12h13M3 18h7"/><circle cx="19" cy="16" r="3"/><path d="M19 14v-8"/></svg>',
     album: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="2.5"/></svg>',
     artist: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21a8 8 0 0 0-16 0"/><circle cx="12" cy="7" r="4"/></svg>',
-    trash: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>'
+    trash: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2M6 6l1 14h10l1-14"/></svg>',
+    queueRemove: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h13M3 12h13M3 18h7"/><path d="M15 15l6 6M21 15l-6 6"/></svg>'
   };
 
   // Insert a track right after the currently-playing one; if it's already
@@ -3167,11 +3168,20 @@
     items.push({ key:'e', label:'Edit', shortcut:'E', icon:TCM_ICONS.edit, action: () => openEditModal(t.id) });
     items.push({ key:'p', label:'Add to Playlist', shortcut:'P', icon:TCM_ICONS.playlist, action: (e) => showPlaylistPopover(anchor, t.id) });
     items.push({ sep:true });
-    items.push({ key:'delete', label:'Delete', shortcut:'⌫', icon:TCM_ICONS.trash, danger:true, action: () => {
-      if(source === 'upnext') removeFromQueueOnly(t.id);
-      else if(source === 'playlist') removeTrackFromPlaylist(opts.playlistId, t.id);
-      else removeTrackEverywhere(t.id);
-    }});
+    if(source === 'upnext'){
+      // In Up Next this only pulls the track out of the current queue —
+      // it doesn't touch the library, so it's a plain (non-danger) action
+      // with its own label rather than the destructive "Delete" wording.
+      items.push({ key:'delete', label:'Remove from Queue', shortcut:'⌫', icon:TCM_ICONS.queueRemove || TCM_ICONS.trash, action: () => removeFromQueueOnly(t.id) });
+    } else {
+      items.push({ key:'delete', label:'Delete', shortcut:'⌫', icon:TCM_ICONS.trash, danger:true, action: () => {
+        if(source === 'playlist') removeTrackFromPlaylist(opts.playlistId, t.id);
+        else removeTrackEverywhere(t.id);
+      }});
+      if(queue.some(q => q.id === t.id)){
+        items.push({ key:'x', label:'Remove from Queue', shortcut:'X', icon:TCM_ICONS.queueRemove || TCM_ICONS.trash, action: () => removeFromQueueOnly(t.id) });
+      }
+    }
     if((t.album || '').trim()){
       items.push({ key:'a', label:'Go to Album', shortcut:'A', icon:TCM_ICONS.album, action: () => openExtPanel('album:' + albumKey(t.album, t.artist)) });
     }
