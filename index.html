@@ -913,6 +913,11 @@
 
   /* ---- Mini search bar inside the Suggested block ---- */
   .suggest-search-row{ position:relative; margin: 2px 8px 10px; }
+  /* Reserve the height of the default 8 suggestion rows (44px each: 26px
+     mini-disc + 9px top/bottom padding) so the panel doesn't grow/shrink
+     as you type — it only grows past this once a search turns up more
+     than 8 results. */
+  .suggest-results-box{ min-height: 352px; }
   .suggest-search-row .search-icon{
     position:absolute; left:9px; top:50%; transform:translateY(-50%);
     color: rgba(244,234,217,0.3);
@@ -1405,14 +1410,17 @@
                   <stop offset="70%" stop-color="#a8a8a8"/>
                   <stop offset="100%" stop-color="#5c5c5c"/>
                 </radialGradient>
-                <path id="labelArcTop" d="M 14.3,37 A 38,38 0 0 1 85.7,37" fill="none"/>
-                <path id="labelArcBottom" d="M 14.3,63 A 38,38 0 0 0 85.7,63" fill="none"/>
+                <!-- Album gets ~70% of the ring, artist ~30%, with a fixed
+                     30° safety gap on each side so a maxed-out album title
+                     can never curve around into the artist's arc. -->
+                <path id="labelArcTop" d="M 12.58,56.6 A 38,38 0 1 1 87.42,56.6" fill="none"/>
+                <path id="labelArcBottom" d="M 20.89,74.44 A 38,38 0 0 0 79.11,74.44" fill="none"/>
               </defs>
               <circle cx="50" cy="50" r="49" class="label-face-shade"/>
-              <text class="label-album-text" text-anchor="start">
-                <textPath href="#labelArcTop" xlink:href="#labelArcTop" startOffset="0%" id="labelTitle">Loading…</textPath>
+              <text class="label-album-text" text-anchor="middle" id="labelAlbumTextEl">
+                <textPath href="#labelArcTop" xlink:href="#labelArcTop" startOffset="50%" id="labelTitle">Loading…</textPath>
               </text>
-              <text class="label-artist-text" text-anchor="middle">
+              <text class="label-artist-text" text-anchor="middle" id="labelArtistTextEl">
                 <textPath href="#labelArcBottom" xlink:href="#labelArcBottom" startOffset="50%" id="labelArtistText">—</textPath>
               </text>
               <circle cx="50" cy="50" r="3.6" class="label-hole"/>
@@ -1962,6 +1970,10 @@
   const trackArtist = document.getElementById('trackArtist');
   const labelTitle = document.getElementById('labelTitle');
   const labelArtistText = document.getElementById('labelArtistText');
+  const labelAlbumTextEl = document.getElementById('labelAlbumTextEl');
+  const labelArtistTextEl = document.getElementById('labelArtistTextEl');
+  const labelArcTopPath = document.getElementById('labelArcTop');
+  const labelArcBottomPath = document.getElementById('labelArcBottom');
   const playBtn = document.getElementById('playBtn');
   const playIcon = document.getElementById('playIcon');
   const progressFill = document.getElementById('progressFill');
@@ -2024,24 +2036,55 @@
     return (s || '').replace(/\s*-\s*topic\s*$/i, '').trim();
   }
 
-  // Curved label text has limited room — trim long names so they don't overrun the arc.
-  function truncateForLabel(s, max){
-    s = (s || '').trim();
-    if(s.length > max) return s.slice(0, max - 1).trimEnd() + '…';
-    return s;
+  // Curved label text has a fixed arc to live on. Rather than hard-cutting
+  // long names at a character count (which used to lop off the end
+  // mid-word), we shrink the font-size in small steps until the rendered
+  // text actually fits the arc's path length, so we always fit as much of
+  // the real name as we can. Only if we hit the minimum readable size and
+  // it *still* doesn't fit do we fall back to an ellipsis — and even then
+  // we keep re-measuring so the ellipsis lands wherever the text truly
+  // runs out, never on a fixed/guessed character count.
+  const LABEL_SAFETY = 0.94; // leaves a small margin inside the arc itself
+  function fitTextToArc(textEl, textPathEl, pathEl, str, maxFont, minFont){
+    str = (str || '').trim();
+    const full = str || '—';
+    const pathLen = pathEl.getTotalLength() * LABEL_SAFETY;
+    let fontSize = maxFont;
+    textEl.style.fontSize = fontSize + 'px';
+    textPathEl.textContent = full;
+    if(!full || full === '—'){ return; }
+
+    // Step the font down until the whole string fits, or we hit the floor.
+    while(textPathEl.getComputedTextLength() > pathLen && fontSize > minFont){
+      fontSize -= 0.25;
+      textEl.style.fontSize = fontSize + 'px';
+    }
+    if(textPathEl.getComputedTextLength() <= pathLen) return;
+
+    // Still doesn't fit at the minimum size — trim from the end, one
+    // character at a time, re-measuring as we go (not a guessed max-length).
+    fontSize = minFont;
+    textEl.style.fontSize = fontSize + 'px';
+    let trimmed = full;
+    while(trimmed.length > 1 && textPathEl.getComputedTextLength() > pathLen){
+      trimmed = trimmed.slice(0, -1);
+      textPathEl.textContent = trimmed.trimEnd() + '…';
+    }
   }
-  // The label shows the ALBUM title (curved along the top, bold) and the
-  // artist (curved along the bottom, in the old "Side A" small-caps style).
-  // Falls back to the track title when no album is tagged.
+  // The label shows the ALBUM title (curved along the top ~70% of the ring,
+  // bold) and the artist (curved along the bottom ~30%, in the old "Side A"
+  // small-caps style). Falls back to the track title when no album is
+  // tagged. The two arcs have a fixed gap built into their paths, so even a
+  // maxed-out album title can never visually run into the artist text.
   function updateLabel(t){
     if(!t){
-      labelTitle.textContent = '—';
-      labelArtistText.textContent = '—';
+      fitTextToArc(labelAlbumTextEl, labelTitle, labelArcTopPath, '—', 9.5, 9.5);
+      fitTextToArc(labelArtistTextEl, labelArtistText, labelArcBottomPath, '—', 5, 5);
       return;
     }
     const albumName = (t.album || '').trim();
-    labelTitle.textContent = truncateForLabel(albumName || t.title, 22);
-    labelArtistText.textContent = truncateForLabel(cleanArtist(t.artist), 30) || '—';
+    fitTextToArc(labelAlbumTextEl, labelTitle, labelArcTopPath, albumName || t.title, 9.5, 6.5);
+    fitTextToArc(labelArtistTextEl, labelArtistText, labelArcBottomPath, cleanArtist(t.artist), 5, 3.8);
   }
 
   // ---------- Vinyl layout (classic full-disc art vs. embedded-label art) ----------
@@ -3127,6 +3170,7 @@
     // itself is never touched/recreated, so it keeps focus and caret
     // position natively instead of needing any restore hack.
     const resultsBox = document.createElement('div');
+    resultsBox.className = 'suggest-results-box';
     crate.appendChild(resultsBox);
     searchInput.addEventListener('input', () => {
       suggestSearchTerm = searchInput.value.trim().toLowerCase();
