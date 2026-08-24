@@ -3114,18 +3114,30 @@
     `;
     crate.appendChild(searchRow);
     const searchInput = searchRow.querySelector('#suggestSearchInput');
-    searchInput.addEventListener('focus', () => { suggestSearchFocused = true; });
-    searchInput.addEventListener('blur', () => { suggestSearchFocused = false; });
-    searchInput.addEventListener('input', () => {
-      suggestSearchTerm = searchInput.value.trim().toLowerCase();
-      renderCrate();
-    });
-    // Restore focus/caret across the rebuild triggered by the input above.
     if(suggestSearchFocused){
       searchInput.focus();
       const v = searchInput.value;
       searchInput.setSelectionRange(v.length, v.length);
     }
+    searchInput.addEventListener('focus', () => { suggestSearchFocused = true; });
+    searchInput.addEventListener('blur', () => { suggestSearchFocused = false; });
+
+    // Results render into their own container, separate from the input
+    // above. Typing re-renders only this container — the input element
+    // itself is never touched/recreated, so it keeps focus and caret
+    // position natively instead of needing any restore hack.
+    const resultsBox = document.createElement('div');
+    crate.appendChild(resultsBox);
+    searchInput.addEventListener('input', () => {
+      suggestSearchTerm = searchInput.value.trim().toLowerCase();
+      renderSuggestResults(pl, resultsBox, header, searchRow, refreshBtn);
+    });
+
+    renderSuggestResults(pl, resultsBox, header, searchRow, refreshBtn);
+  }
+
+  function renderSuggestResults(pl, resultsBox, header, searchRow, refreshBtn){
+    resultsBox.innerHTML = '';
 
     if(suggestSearchTerm){
       // Search the whole library (minus what's already in the playlist),
@@ -3143,10 +3155,10 @@
         empty.className = 'upnext-empty';
         empty.style.padding = '4px 8px 8px';
         empty.textContent = 'No matching songs.';
-        crate.appendChild(empty);
+        resultsBox.appendChild(empty);
         return;
       }
-      results.forEach(t => renderSuggestionRow(t, crate, pl, results));
+      results.forEach(t => renderSuggestionRow(t, resultsBox, pl, results));
       return;
     }
 
@@ -3173,9 +3185,10 @@
     if(suggestions.length === 0){
       header.remove();
       searchRow.remove();
+      resultsBox.remove();
       return;
     }
-    refreshBtn.addEventListener('click', (e) => {
+    refreshBtn.onclick = (e) => {
       e.stopPropagation();
       refreshBtn.classList.add('spin');
       suggestions.forEach(t => excludeSet.add(t.id));
@@ -3186,8 +3199,8 @@
       }
       suggestionCache.set(pl.id, fresh);
       renderCrate();
-    });
-    suggestions.forEach(t => renderSuggestionRow(t, crate, pl, suggestions));
+    };
+    suggestions.forEach(t => renderSuggestionRow(t, resultsBox, pl, suggestions));
   }
 
   function renderCrate(){
