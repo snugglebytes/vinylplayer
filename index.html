@@ -982,6 +982,29 @@
   }
   .mini-disc.mini-disc-square::after{ content:none; }
 
+  /* ---- Preview-listen overlay on a suggestion row's album art ---- */
+  .suggestion-row .mini-disc{ position: relative; }
+  .suggestion-row .mini-disc .preview-icon{
+    position:absolute; inset:0; margin:auto;
+    color: var(--cream);
+    opacity: 0;
+    filter: drop-shadow(0 1px 2px rgba(0,0,0,0.6));
+    transition: opacity 0.15s ease;
+    pointer-events:none;
+  }
+  .suggestion-row .mini-disc::before{
+    content:""; position:absolute; inset:0; border-radius:inherit;
+    background: rgba(0,0,0,0); transition: background 0.15s ease;
+  }
+  .suggestion-row .mini-disc:hover::before{ background: rgba(0,0,0,0.35); }
+  .suggestion-row .mini-disc:hover .preview-icon-play{ opacity: 1; }
+  .suggestion-row.previewing .mini-disc::before{ background: rgba(0,0,0,0.4); }
+  .suggestion-row.previewing .mini-disc:hover .preview-icon-play{ opacity: 0; }
+  .suggestion-row.previewing .mini-disc .preview-icon-pause{ opacity: 1; }
+  .suggestion-row.previewing .mini-disc:hover .preview-icon-pause{ opacity: 1; }
+  .suggestion-row.previewing{ background: rgba(143,143,143,0.1); }
+  .suggestion-row.previewing .mini-disc{ box-shadow: inset 0 0 0 1px var(--brass-bright), 0 0 0 1px var(--brass-bright); }
+
   .track-meta{ flex:1; min-width:0; }
   .track-meta .t{ font-size:12.5px; color:var(--cream); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .track-meta .a{ font-size:10px; color:rgba(244,234,217,0.5); }
@@ -1779,6 +1802,7 @@
       events: {
         onReady: () => { ytReadyB = true; cb(); },
         onError: () => {
+          if(previewingTrackId){ stopPreview(); return; }
           // The upcoming video failed to load/play (removed, region-locked,
           // etc). Bail out of the crossfade cleanly instead of leaving the
           // front track's volume stuck mid-ramp.
@@ -1787,6 +1811,10 @@
           try{ if(ytReady) ytPlayer.setVolume(muted ? 0 : volume); }catch(e){}
         },
         onStateChange: (e) => {
+          if(previewingTrackId){
+            if(e.data === YT.PlayerState.ENDED) stopPreview();
+            return; // a preview ending is not the main track ending
+          }
           if(e.data === YT.PlayerState.ENDED) handleTrackEnded();
         }
       }
@@ -1825,6 +1853,7 @@
     if(nextIdx === -1) return;
     const nextT = queue[nextIdx];
     if(!nextT) return;
+    stopPreview(); // free up the back player before the crossfade claims it
     crossfading = true;
     // Safety net: if the back player never becomes ready (slow network, the
     // video failing to embed, etc), give up on the crossfade instead of
@@ -2491,6 +2520,7 @@
     scheduleShellShift();
   }
   function closeSidebar(){
+    stopPreview();
     sidebar.classList.remove('open');
     sidebarExt.classList.remove('open');
     sidebarOverlay.classList.remove('open');
@@ -2510,6 +2540,7 @@
     // itself needs to open too — otherwise it's still translated
     // off-screen and the ext panel renders invisibly inside it.
     if(!sidebar.classList.contains('open')) openSidebar();
+    stopPreview();
     // Only the transition from closed -> open actually moves the panel
     // (and therefore the console). Switching views while it's already
     // open just swaps its content in place, so skip re-shifting the
@@ -2592,6 +2623,7 @@
     }
   }
   function closeExtPanel(){
+    stopPreview();
     sidebarExt.classList.remove('open');
     document.body.classList.remove('ext-open');
     extView = null;
@@ -2858,6 +2890,36 @@
       .split(/\s+/)
       .filter(w => w.length > 2 && !SUGGESTION_STOPWORDS.has(w));
   }
+  // ---------- Preview listen (album-art click on a suggestion) ----------
+  // Uses the same hidden "back" iframe the crossfade feature spins up, just
+  // for a quick listen without touching the main queue/current track. Only
+  // one preview plays at a time; clicking the same art again stops it.
+  let previewingTrackId = null;
+  let previewRowEl = null;
+  function stopPreview(){
+    if(!previewingTrackId) return;
+    previewingTrackId = null;
+    if(previewRowEl) previewRowEl.classList.remove('previewing');
+    previewRowEl = null;
+    if(ytPlayerB){ try{ ytPlayerB.pauseVideo(); }catch(e){} }
+  }
+  function previewTrack(t, rowEl){
+    if(crossfading) return; // don't fight the crossfade for the back player
+    if(previewingTrackId === t.id){ stopPreview(); return; }
+    if(previewRowEl) previewRowEl.classList.remove('previewing');
+    previewingTrackId = t.id;
+    previewRowEl = rowEl;
+    rowEl.classList.add('previewing');
+    ensureBackPlayer(() => {
+      if(previewingTrackId !== t.id) return; // superseded while spinning up
+      try{
+        ytPlayerB.setVolume(muted ? 0 : volume);
+        ytPlayerB.loadVideoById(t.videoId);
+        ytPlayerB.playVideo();
+      }catch(e){}
+    });
+  }
+
   function getPlaylistSuggestions(pl, limit, excludeIds){
     excludeIds = excludeIds || new Set();
     const existing = new Set(pl.trackIds);
@@ -2889,6 +2951,11 @@
     if(!suggestionExclude.has(plId)) suggestionExclude.set(plId, new Set());
     return suggestionExclude.get(plId);
   }
+  // Caches the actual last-shown batch per playlist (separate from the
+  // exclude set above) so re-rendering the crate — e.g. right after the
+  // user adds one of the suggestions — reuses the same list instead of
+  // recomputing (and re-shuffling via the scoring jitter) every time.
+  const suggestionCache = new Map(); // playlistId -> Track[]
 
   // Mini search inside the Suggested block — lets you search the whole
   // library for something to add, instead of only picking from the current
@@ -2926,6 +2993,7 @@
   }
 
   function playSuggestedTrack(t, suggestions){
+    stopPreview();
     setQueue(suggestions, 'Suggested');
     current = queue.findIndex(x => x.id === t.id);
     if(current < 0) current = 0;
@@ -2935,9 +3003,12 @@
 
   function renderSuggestionRow(t, container, pl, suggestions){
     const row = document.createElement('div');
-    row.className = 'track-row suggestion-row';
+    row.className = 'track-row suggestion-row' + (previewingTrackId === t.id ? ' previewing' : '');
     row.innerHTML = `
-      <div class="mini-disc${t.art ? ' has-art' : ''}"${t.art ? ` style="background-image:url('${t.art}')"` : ''}></div>
+      <div class="mini-disc${t.art ? ' has-art' : ''}"${t.art ? ` style="background-image:url('${t.art}')"` : ''} title="Preview">
+        <svg class="preview-icon preview-icon-play" width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        <svg class="preview-icon preview-icon-pause" width="13" height="13" viewBox="0 0 24 24" fill="currentColor"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>
+      </div>
       <div class="track-meta">
         <div class="t">${escapeHtml(t.title)}</div>
         <div class="a">${escapeHtml(cleanArtist(t.artist))}</div>
@@ -2948,8 +3019,9 @@
         </button>
       </div>
     `;
+    if(previewingTrackId === t.id) previewRowEl = row;
     row.querySelector('.track-meta').addEventListener('click', () => playSuggestedTrack(t, suggestions));
-    row.querySelector('.mini-disc').addEventListener('click', () => playSuggestedTrack(t, suggestions));
+    row.querySelector('.mini-disc').addEventListener('click', (e) => { e.stopPropagation(); previewTrack(t, row); });
     row.querySelector('.add-suggestion-btn').addEventListener('click', (e) => {
       e.stopPropagation();
       if(!pl.trackIds.includes(t.id)){
@@ -3017,12 +3089,24 @@
 
     refreshBtn.style.display = 'flex';
     const excludeSet = getSuggestionExcludeSet(pl.id);
-    let suggestions = getPlaylistSuggestions(pl, 8, excludeSet);
-    if(suggestions.length === 0 && excludeSet.size > 0){
-      // Ran out of fresh picks — start the rotation over.
-      excludeSet.clear();
-      suggestions = getPlaylistSuggestions(pl, 8, excludeSet);
+    // Reuse the last-computed batch across re-renders (e.g. after adding a
+    // track) so the list doesn't reshuffle every time — only Refresh (or
+    // running out of tracks) should produce a new batch. Any track that's
+    // since been added to the playlist is simply dropped from the cached
+    // list rather than triggering a recompute.
+    let suggestions = suggestionCache.get(pl.id);
+    if(suggestions){
+      suggestions = suggestions.filter(t => !pl.trackIds.includes(t.id));
     }
+    if(!suggestions || suggestions.length === 0){
+      suggestions = getPlaylistSuggestions(pl, 8, excludeSet);
+      if(suggestions.length === 0 && excludeSet.size > 0){
+        // Ran out of fresh picks — start the rotation over.
+        excludeSet.clear();
+        suggestions = getPlaylistSuggestions(pl, 8, excludeSet);
+      }
+    }
+    suggestionCache.set(pl.id, suggestions);
     if(suggestions.length === 0){
       header.remove();
       searchRow.remove();
@@ -3032,6 +3116,12 @@
       e.stopPropagation();
       refreshBtn.classList.add('spin');
       suggestions.forEach(t => excludeSet.add(t.id));
+      let fresh = getPlaylistSuggestions(pl, 8, excludeSet);
+      if(fresh.length === 0){
+        excludeSet.clear();
+        fresh = getPlaylistSuggestions(pl, 8, excludeSet);
+      }
+      suggestionCache.set(pl.id, fresh);
       renderCrate();
     });
     suggestions.forEach(t => renderSuggestionRow(t, crate, pl, suggestions));
