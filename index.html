@@ -3031,8 +3031,12 @@
       // song first, then shuffles the rest of the library behind it —
       // rather than just queuing that one track or playing the list in
       // its displayed (often alphabetical) order.
-      const picked = list.find(t => t.id === trackId);
-      const rest = shuffleArray(list.filter(t => t.id !== trackId));
+      // Build the shuffled "rest" from the full library, not just the
+      // (possibly search-filtered) list that was clicked from — otherwise
+      // clicking a search result only shuffles the other search matches
+      // (often none) instead of queuing up the rest of your songs.
+      const picked = tracks.find(t => t.id === trackId) || list.find(t => t.id === trackId);
+      const rest = shuffleArray(tracks.filter(t => t.id !== trackId));
       queueLabel = 'All Songs';
       queuePlaylistId = null;
       preShuffleQueue = null;
