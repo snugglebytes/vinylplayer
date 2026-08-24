@@ -911,6 +911,27 @@
   .search-row input::placeholder{ color: rgba(244,234,217,0.35); }
   .search-row input:focus{ border-color: var(--brass); }
 
+  /* ---- Mini search bar inside the Suggested block ---- */
+  .suggest-search-row{ position:relative; margin: 2px 8px 10px; }
+  .suggest-search-row .search-icon{
+    position:absolute; left:9px; top:50%; transform:translateY(-50%);
+    color: rgba(244,234,217,0.3);
+    pointer-events:none;
+  }
+  .suggest-search-row input{
+    width: 100%;
+    background: rgba(0,0,0,0.2);
+    border: 1px solid rgba(143,143,143,0.2);
+    border-radius: 7px;
+    padding: 7px 9px 7px 28px;
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    color: var(--cream);
+    outline: none;
+  }
+  .suggest-search-row input::placeholder{ color: rgba(244,234,217,0.3); }
+  .suggest-search-row input:focus{ border-color: var(--brass); }
+
   .crate{
     display:flex; flex-direction:column; gap:2px;
     flex: 1;
@@ -2478,6 +2499,7 @@
     extView = null;
     extSearchTerm = '';
     extSearchInput.value = '';
+    suggestSearchTerm = '';
     renderPlaylistNav();
     scheduleShellShift();
   }
@@ -2498,6 +2520,7 @@
     document.body.classList.add('ext-open');
     extSearchTerm = '';
     extSearchInput.value = '';
+    suggestSearchTerm = '';
     if(view === 'all'){
       extTitle.textContent = 'All Songs';
       extAddRow.style.display = 'flex';
@@ -2574,6 +2597,7 @@
     extView = null;
     extSearchTerm = '';
     extSearchInput.value = '';
+    suggestSearchTerm = '';
     renderPlaylistNav();
     scheduleShellShift();
   }
@@ -2866,6 +2890,12 @@
     return suggestionExclude.get(plId);
   }
 
+  // Mini search inside the Suggested block — lets you search the whole
+  // library for something to add, instead of only picking from the current
+  // batch of auto-suggestions. Resets whenever the panel is opened/closed
+  // or the playlist view changes, same as the main ext search.
+  let suggestSearchTerm = '';
+
   function shuffleArray(arr){
     const a = arr.slice();
     for(let i = a.length - 1; i > 0; i--){
@@ -2933,15 +2963,6 @@
   }
 
   function renderSuggestions(pl){
-    const excludeSet = getSuggestionExcludeSet(pl.id);
-    let suggestions = getPlaylistSuggestions(pl, 8, excludeSet);
-    if(suggestions.length === 0 && excludeSet.size > 0){
-      // Ran out of fresh picks — start the rotation over.
-      excludeSet.clear();
-      suggestions = getPlaylistSuggestions(pl, 8, excludeSet);
-    }
-    if(suggestions.length === 0) return;
-
     const header = document.createElement('div');
     header.className = 'suggestions-header';
     const label = document.createElement('span');
@@ -2951,14 +2972,68 @@
     refreshBtn.className = 'icon-btn suggestions-refresh-btn';
     refreshBtn.title = 'Refresh suggestions';
     refreshBtn.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15.3-6.4L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-15.3 6.4L3 16"/><path d="M3 21v-5h5"/></svg>';
+    header.appendChild(refreshBtn);
+    crate.appendChild(header);
+
+    const searchRow = document.createElement('div');
+    searchRow.className = 'suggest-search-row';
+    searchRow.innerHTML = `
+      <svg class="search-icon" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
+      <input type="text" id="suggestSearchInput" placeholder="Search songs to add…" value="${escapeHtml(suggestSearchTerm)}" />
+    `;
+    crate.appendChild(searchRow);
+    const searchInput = searchRow.querySelector('#suggestSearchInput');
+    searchInput.addEventListener('input', () => {
+      suggestSearchTerm = searchInput.value.trim().toLowerCase();
+      renderCrate();
+    });
+    // Keep focus/caret when re-rendering as the user types.
+    if(document.activeElement && document.activeElement.id === 'suggestSearchInput'){
+      requestAnimationFrame(() => { searchInput.focus(); const v = searchInput.value; searchInput.setSelectionRange(v.length, v.length); });
+    }
+
+    if(suggestSearchTerm){
+      // Search the whole library (minus what's already in the playlist),
+      // not just the current auto-suggested batch — refresh is irrelevant
+      // while actively searching, so hide it.
+      refreshBtn.style.display = 'none';
+      const existing = new Set(pl.trackIds);
+      const results = tracks.filter(t => !existing.has(t.id))
+        .filter(t => (t.title || '').toLowerCase().includes(suggestSearchTerm) ||
+          cleanArtist(t.artist).toLowerCase().includes(suggestSearchTerm) ||
+          (t.album || '').toLowerCase().includes(suggestSearchTerm))
+        .slice(0, 25);
+      if(results.length === 0){
+        const empty = document.createElement('div');
+        empty.className = 'upnext-empty';
+        empty.style.padding = '4px 8px 8px';
+        empty.textContent = 'No matching songs.';
+        crate.appendChild(empty);
+        return;
+      }
+      results.forEach(t => renderSuggestionRow(t, crate, pl, results));
+      return;
+    }
+
+    refreshBtn.style.display = 'flex';
+    const excludeSet = getSuggestionExcludeSet(pl.id);
+    let suggestions = getPlaylistSuggestions(pl, 8, excludeSet);
+    if(suggestions.length === 0 && excludeSet.size > 0){
+      // Ran out of fresh picks — start the rotation over.
+      excludeSet.clear();
+      suggestions = getPlaylistSuggestions(pl, 8, excludeSet);
+    }
+    if(suggestions.length === 0){
+      header.remove();
+      searchRow.remove();
+      return;
+    }
     refreshBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       refreshBtn.classList.add('spin');
       suggestions.forEach(t => excludeSet.add(t.id));
       renderCrate();
     });
-    header.appendChild(refreshBtn);
-    crate.appendChild(header);
     suggestions.forEach(t => renderSuggestionRow(t, crate, pl, suggestions));
   }
 
