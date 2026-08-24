@@ -2891,17 +2891,42 @@
       .filter(w => w.length > 2 && !SUGGESTION_STOPWORDS.has(w));
   }
   // ---------- Preview listen (album-art click on a suggestion) ----------
-  // Uses the same hidden "back" iframe the crossfade feature spins up, just
-  // for a quick listen without touching the main queue/current track. Only
-  // one preview plays at a time; clicking the same art again stops it.
+  // Uses the same hidden "back" iframe the crossfade feature spins up.
+  // While previewing, it takes over the vinyl display (title/artist/art/
+  // spinning record/progress) and pauses the main track's audio; stopping
+  // the preview hands the vinyl and audio back to whatever the real
+  // queue/current track was doing.
   let previewingTrackId = null;
   let previewRowEl = null;
+  let previewTimer = null;
   function stopPreview(){
     if(!previewingTrackId) return;
     previewingTrackId = null;
     if(previewRowEl) previewRowEl.classList.remove('previewing');
     previewRowEl = null;
     if(ytPlayerB){ try{ ytPlayerB.pauseVideo(); }catch(e){} }
+    clearInterval(previewTimer);
+    previewTimer = null;
+
+    // Restore the vinyl to the real current track and playback state.
+    const t = queue[current];
+    if(t){
+      trackTitle.textContent = t.title;
+      trackArtist.textContent = cleanArtist(t.artist);
+      updateLabel(t);
+      applyRecordArt(t);
+    }
+    record.classList.toggle('spinning', playing);
+    tonearm.classList.toggle('playing', playing);
+    if(ytReady){
+      duration = ytPlayer.getDuration() || duration;
+      elapsed = ytPlayer.getCurrentTime() || 0;
+      totalTimeEl.textContent = fmt(duration);
+      updateProgress();
+      if(playing){ try{ ytPlayer.playVideo(); }catch(e){} }
+    }
+    clearInterval(timer);
+    if(playing){ timer = setInterval(tick, 500); }
   }
   function previewTrack(t, rowEl){
     if(crossfading) return; // don't fight the crossfade for the back player
@@ -2910,6 +2935,24 @@
     previewingTrackId = t.id;
     previewRowEl = rowEl;
     rowEl.classList.add('previewing');
+
+    // Pause the real track's audio and progress ticking (its `playing`
+    // flag is left untouched so we know whether to resume it on stop).
+    if(ytReady){ try{ ytPlayer.pauseVideo(); }catch(e){} }
+    clearInterval(timer);
+    clearInterval(previewTimer);
+
+    // Take over the vinyl display for the preview.
+    trackTitle.textContent = t.title;
+    trackArtist.textContent = cleanArtist(t.artist);
+    updateLabel(t);
+    applyRecordArt(t);
+    record.classList.add('spinning');
+    tonearm.classList.add('playing');
+    elapsed = 0; duration = 0;
+    totalTimeEl.textContent = fmt(0);
+    updateProgress();
+
     ensureBackPlayer(() => {
       if(previewingTrackId !== t.id) return; // superseded while spinning up
       try{
@@ -2917,6 +2960,13 @@
         ytPlayerB.loadVideoById(t.videoId);
         ytPlayerB.playVideo();
       }catch(e){}
+      previewTimer = setInterval(() => {
+        if(previewingTrackId !== t.id || !ytPlayerB) return;
+        elapsed = ytPlayerB.getCurrentTime() || 0;
+        duration = ytPlayerB.getDuration() || duration;
+        totalTimeEl.textContent = fmt(duration);
+        updateProgress();
+      }, 500);
     });
   }
 
@@ -3776,7 +3826,7 @@
     loadCurrent(true);
   }
 
-  playBtn.addEventListener('click', () => setPlaying(!playing));
+  playBtn.addEventListener('click', () => { stopPreview(); setPlaying(!playing); });
   document.getElementById('nextBtn').addEventListener('click', nextTrack);
   document.getElementById('prevBtn').addEventListener('click', prevTrack);
 
