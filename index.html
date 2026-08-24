@@ -3026,9 +3026,23 @@
   }
 
   function playFromList(list, trackId){
-    setQueue(list, extView === 'all' ? 'All Songs' : (playlists.find(p => p.id === extView) || {}).name || 'Playlist', playlistIdForView(extView));
-    current = queue.findIndex(t => t.id === trackId);
-    if(current < 0) current = 0;
+    if(extView === 'all'){
+      // YT Music-style behavior: starting a song from All Songs plays that
+      // song first, then shuffles the rest of the library behind it —
+      // rather than just queuing that one track or playing the list in
+      // its displayed (often alphabetical) order.
+      const picked = list.find(t => t.id === trackId);
+      const rest = shuffleArray(list.filter(t => t.id !== trackId));
+      queueLabel = 'All Songs';
+      queuePlaylistId = null;
+      preShuffleQueue = null;
+      queue = picked ? [picked, ...rest] : rest;
+      current = 0;
+    } else {
+      setQueue(list, (playlists.find(p => p.id === extView) || {}).name || 'Playlist', playlistIdForView(extView));
+      current = queue.findIndex(t => t.id === trackId);
+      if(current < 0) current = 0;
+    }
     renderUpNext();
     loadCurrent(true);
   }
