@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Spindle — Vinyl Player</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#3a261e">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Spindle">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,700&family=JetBrains+Mono:wght@400;500;600&display=swap');
 
@@ -769,6 +776,10 @@
     box-shadow: 8px 0 30px rgba(0,0,0,0.4);
     transform: translateX(-100%);
     opacity: 0;
+    pointer-events: none; /* closed panel must never intercept clicks — on narrow
+      screens the min(...,82vw) left/width math doesn't fully cancel out with
+      translateX(-100%), so the invisible panel can still sit over the menu
+      button and other header controls unless clicks pass through it */
     transition: transform 0.3s cubic-bezier(.65,0,.35,1), opacity 0.25s ease;
     z-index: 49;
     padding: 22px 18px;
@@ -776,7 +787,7 @@
     flex-direction:column;
     border-right: 1px solid rgba(201,154,84,0.15);
   }
-  .sidebar-ext.open{ transform: translateX(0); opacity: 1; }
+  .sidebar-ext.open{ transform: translateX(0); opacity: 1; pointer-events: auto; }
 
   .ext-head{
     display:flex; align-items:center; justify-content:space-between;
@@ -3455,6 +3466,50 @@
     clearInterval(timer);
     if(playing){ timer = setInterval(tick, 500); }
     updateNowPlayingHighlight();
+    confirmPlaybackState(playing);
+  }
+
+  // The embedded YouTube iframe can briefly drop its connection — most
+  // commonly when the browser's GPU process restarts after the window
+  // moves to a display with a different refresh rate/DPI. During that gap
+  // playVideo()/pauseVideo() calls are silently swallowed, so the UI (and
+  // our own `playing` flag) can end up out of sync with what's actually
+  // happening in the iframe. This re-checks the iframe's real state a
+  // moment later and retries the command (with backoff) until it takes,
+  // or gives up and reconciles the UI to reality after a few tries.
+  let playbackConfirmToken = 0;
+  function confirmPlaybackState(expectedPlaying, attempt = 0){
+    const token = ++playbackConfirmToken;
+    const delay = 400 + attempt * 500; // 400ms, 900ms, 1400ms, 1900ms...
+    setTimeout(() => {
+      if(token !== playbackConfirmToken) return; // a newer play/pause/track change superseded this check
+      if(!ytReady || typeof ytPlayer.getPlayerState !== 'function') return;
+      let state;
+      try{ state = ytPlayer.getPlayerState(); }catch(e){ return; }
+      // Only reconcile against the two states we can act on (playing/paused);
+      // ignore transient states like CUED/UNSTARTED/BUFFERING — not a mismatch yet.
+      if(state !== YT.PlayerState.PLAYING && state !== YT.PlayerState.PAUSED) return;
+      const actuallyPlaying = state === YT.PlayerState.PLAYING;
+      if(actuallyPlaying === expectedPlaying) return; // command took, nothing to do
+
+      if(attempt < 4){
+        try{ expectedPlaying ? ytPlayer.playVideo() : ytPlayer.pauseVideo(); }catch(e){}
+        confirmPlaybackState(expectedPlaying, attempt + 1);
+      } else {
+        // Give up retrying and reconcile our UI/state to what the iframe is
+        // actually doing, rather than leaving the button showing a state
+        // that silently does nothing when pressed.
+        playing = actuallyPlaying;
+        record.classList.toggle('spinning', playing);
+        tonearm.classList.toggle('playing', playing);
+        playIcon.innerHTML = playing
+          ? '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>'
+          : '<path d="M8 5v14l11-7z"/>';
+        clearInterval(timer);
+        if(playing){ timer = setInterval(tick, 500); }
+        updateNowPlayingHighlight();
+      }
+    }, delay);
   }
 
   function tick(){
@@ -3883,6 +3938,15 @@
   applyRecordArt(queue[0]);
   renderUpNext();
   syncVolumeRowWidth();
+
+  // ---------- PWA install support ----------
+  // Only registers when served over http(s) (file:// pages can't use service
+  // workers), so this is a no-op harmlessly if you're just double-clicking
+  // the file. Serve the folder (e.g. `npx serve`) or host it to get the
+  // "Add to Home Screen" / install-as-app prompt.
+  if('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost')){
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
 </script>
 
 </body>
