@@ -210,6 +210,72 @@
   .upnext-row:hover{ background: rgba(244,234,217,0.06); }
   .upnext-row.dragging{ opacity: 0.35; }
   .upnext-row.drag-over{ box-shadow: inset 0 2px 0 0 var(--brass-bright); }
+  .upnext-row.unavailable .upnext-meta{ opacity: 0.55; }
+  .unavailable-flag{ color:#d9a441; font-size:11px; }
+  .upnext-relink-btn{
+    background: rgba(217,164,65,0.12);
+    color:#d9a441;
+    border: 1px solid rgba(217,164,65,0.4);
+    border-radius: 6px;
+    font-family:'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    padding: 3px 7px;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .upnext-relink-btn:hover{ background: rgba(217,164,65,0.22); }
+
+  /* ---- Toast (e.g. "track unavailable" notices) ---- */
+  .toast{
+    position: fixed;
+    left: 50%;
+    bottom: 28px;
+    transform: translate(-50%, 12px);
+    max-width: min(420px, calc(100vw - 32px));
+    display:flex; align-items:center; gap:12px;
+    background: linear-gradient(150deg, #222, #161616);
+    color: var(--cream);
+    border-radius: 10px;
+    padding: 12px 14px;
+    box-shadow: 0 16px 34px var(--shadow), inset 0 0 0 1px rgba(143,143,143,0.18);
+    font-size: 12px;
+    line-height: 1.4;
+    z-index: 200;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+  }
+  .toast.show{ opacity: 1; transform: translate(-50%, 0); pointer-events:auto; }
+  .toast-msg{ flex: 1; }
+  .toast-action{
+    background: rgba(217,164,65,0.15);
+    color:#d9a441;
+    border: 1px solid rgba(217,164,65,0.45);
+    border-radius: 6px;
+    font-family:'Space Mono', monospace;
+    font-size: 11px;
+    padding: 5px 9px;
+    cursor:pointer;
+    white-space:nowrap;
+  }
+  .toast-action:hover{ background: rgba(217,164,65,0.28); }
+  .toast-close{
+    background:none; border:none; color: rgba(244,234,217,0.5); cursor:pointer;
+    font-size: 14px; line-height:1; padding: 2px;
+  }
+  .toast-close:hover{ color: var(--cream); }
+
+  .edit-video-warning{
+    background: rgba(217,164,65,0.12);
+    border: 1px solid rgba(217,164,65,0.4);
+    color: #d9a441;
+    border-radius: 8px;
+    font-size: 11px;
+    line-height: 1.5;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+  }
 
   .upnext-idx{
     width: 16px; height:16px; flex-shrink:0;
@@ -441,12 +507,18 @@
     width: 46%;
     height: 46%;
     transform-origin: 88% 12%;
-    transform: rotate(-24deg);
-    transition: transform 0.9s cubic-bezier(.65,0,.35,1);
+    --arm-angle: -24deg;
+    transform: rotate(var(--arm-angle));
+    /* Lift/drop (the .playing toggle) is a slower, weightier swing than the
+       continuous inward sweep that tracks playback progress — so the two
+       transition speeds are split via a modifier class instead of one
+       blanket rule. */
+    transition: transform 0.5s cubic-bezier(.4,0,.2,1);
     z-index: 10;
     pointer-events:none;
   }
-  .tonearm.playing{ transform: rotate(15deg); }
+  .tonearm.playing{ --arm-angle: 15deg; }
+  .tonearm.lifting{ transition: transform 0.9s cubic-bezier(.65,0,.35,1); }
 
   .arm-counterweight{
     position:absolute; top:-4%; right:2%;
@@ -1586,6 +1658,11 @@
   <div class="crate" id="crate"></div>
 </aside>
 
+<div class="toast" id="appToast">
+  <div class="toast-msg" id="toastMsg"></div>
+  <button class="toast-action" id="toastAction" style="display:none;"></button>
+  <button class="toast-close" id="toastClose" title="Dismiss">✕</button>
+</div>
 <div class="playlist-popover" id="playlistPopover"></div>
 <div class="track-context-menu" id="trackContextMenu"></div>
 <div class="track-context-menu" id="albumSortMenu"></div>
@@ -1636,6 +1713,11 @@
           <input type="file" id="editArtFileInput" accept="image/*">
         </div>
       </div>
+    </div>
+    <div class="edit-field">
+      <div class="edit-video-warning" id="editVideoWarning" style="display:none;">This song's YouTube link stopped working. Paste a new one below to fix it.</div>
+      <label for="editVideoUrlInput">YouTube link</label>
+      <input type="text" id="editVideoUrlInput" placeholder="Paste a YouTube link…">
     </div>
     <div class="edit-modal-actions">
       <button class="edit-cancel-btn" id="editCancelBtn">Cancel</button>
@@ -1722,6 +1804,47 @@
 
   function trackById(id){ return tracks.find(t => t.id === id); }
 
+  // ---------- Toast ----------
+  let toastHideTimer = null;
+  function showToast(message, opts){
+    const toast = document.getElementById('appToast');
+    const msgEl = document.getElementById('toastMsg');
+    const actionBtn = document.getElementById('toastAction');
+    const closeBtn = document.getElementById('toastClose');
+    msgEl.textContent = message;
+    if(opts && opts.actionLabel && opts.onAction){
+      actionBtn.textContent = opts.actionLabel;
+      actionBtn.style.display = '';
+      actionBtn.onclick = () => { hideToast(); opts.onAction(); };
+    } else {
+      actionBtn.style.display = 'none';
+      actionBtn.onclick = null;
+    }
+    closeBtn.onclick = hideToast;
+    toast.classList.add('show');
+    clearTimeout(toastHideTimer);
+    toastHideTimer = setTimeout(hideToast, opts && opts.duration ? opts.duration : 6000);
+  }
+  function hideToast(){
+    document.getElementById('appToast').classList.remove('show');
+    clearTimeout(toastHideTimer);
+  }
+
+  // A track's video failed to load/play (removed, region-locked, etc).
+  // Flag it so the library/queue can show a visible "broken link" state
+  // instead of just quietly skipping past it, and surface a toast with a
+  // one-click way to fix the link right away.
+  function markTrackUnavailable(t){
+    if(!t) return;
+    t.unavailable = true;
+    saveTracks();
+    renderCrate(); renderPlaylistNav(); renderUpNext();
+    showToast(`"${t.title}" is unavailable — skipped.`, {
+      actionLabel: 'Fix link',
+      onAction: () => openEditModal(t.id, { focusVideoUrl: true })
+    });
+  }
+
   // ---------- Playback state ----------
   let queue = tracks.slice();      // the list currently being played through
   let queueLabel = 'All Songs';
@@ -1767,12 +1890,18 @@
         onError: () => {
           // A track failed to load/play (removed, region-locked, etc) —
           // move on instead of silently going quiet with no recovery.
+          const failedTrack = queue[current];
+          markTrackUnavailable(failedTrack);
           cancelCrossfade();
           if(queue.length > 1) nextTrack();
           else setPlaying(false);
         },
         onStateChange: (e) => {
           if(e.data === YT.PlayerState.ENDED){ handleTrackEnded(); }
+          if(e.data === YT.PlayerState.PLAYING){
+            const t = queue[current];
+            if(t && t.unavailable){ t.unavailable = false; saveTracks(); renderCrate(); renderPlaylistNav(); renderUpNext(); }
+          }
         }
       }
     });
@@ -1814,6 +1943,8 @@
           // The upcoming video failed to load/play (removed, region-locked,
           // etc). Bail out of the crossfade cleanly instead of leaving the
           // front track's volume stuck mid-ramp.
+          const nextIdx = peekNextIndex();
+          if(nextIdx !== -1) markTrackUnavailable(queue[nextIdx]);
           crossfading = false;
           if(crossfadeInterval){ clearInterval(crossfadeInterval); crossfadeInterval = null; }
           try{ if(ytReady) ytPlayer.setVolume(muted ? 0 : volume); }catch(e){}
@@ -2352,19 +2483,26 @@
     let currentRow = null;
     queue.forEach((t, i) => {
       const row = document.createElement('div');
-      row.className = 'upnext-row' + (i === current ? ' now-playing' : '');
+      row.className = 'upnext-row' + (i === current ? ' now-playing' : '') + (t.unavailable ? ' unavailable' : '');
       row.draggable = true;
       row.innerHTML = `
         <div class="upnext-idx">${i === current ? '' : i + 1}</div>
         <div class="upnext-meta">
-          <div class="t">${escapeHtml(t.title)}</div>
+          <div class="t">${t.unavailable ? '<span class="unavailable-flag" title="This link stopped working">⚠</span> ' : ''}${escapeHtml(t.title)}</div>
           <div class="a">${escapeHtml(cleanArtist(t.artist))}</div>
         </div>
         <div class="upnext-actions">
+          ${t.unavailable ? '<button class="icon-btn upnext-relink-btn" title="Fix broken link">Relink</button>' : ''}
           <button class="icon-btn upnext-menu-btn" title="More options">${ELLIPSIS_ICON}</button>
           <div class="upnext-drag-handle" title="Drag to reorder">${DRAG_HANDLE_ICON}</div>
         </div>
       `;
+      if(t.unavailable){
+        row.querySelector('.upnext-relink-btn').addEventListener('click', (e) => {
+          e.stopPropagation();
+          openEditModal(t.id, { focusVideoUrl: true });
+        });
+      }
       if(i === current){
         const idxCell = row.querySelector('.upnext-idx');
         idxCell.innerHTML = '<div class="eq-bars"><span></span><span></span><span></span></div>';
@@ -2963,12 +3101,13 @@
       applyRecordArt(t);
     }
     record.classList.toggle('spinning', playing);
-    tonearm.classList.toggle('playing', playing);
+    tonearmLift(playing);
     if(ytReady){
       duration = ytPlayer.getDuration() || duration;
       elapsed = ytPlayer.getCurrentTime() || 0;
       totalTimeEl.textContent = fmt(duration);
       updateProgress();
+      updateTonearmSweep();
       if(playing){ try{ ytPlayer.playVideo(); }catch(e){} }
     }
     clearInterval(timer);
@@ -3792,6 +3931,7 @@
     const t = queue[current];
     if(!t) return;
     elapsed = 0;
+    resetTonearmSweep();
     trackTitle.textContent = t.title;
     trackArtist.textContent = cleanArtist(t.artist);
     updateLabel(t);
@@ -3809,7 +3949,7 @@
   function setPlaying(state){
     playing = state;
     record.classList.toggle('spinning', playing);
-    tonearm.classList.toggle('playing', playing);
+    tonearmLift(playing);
     playIcon.innerHTML = playing
       ? '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>'
       : '<path d="M8 5v14l11-7z"/>';
@@ -3853,7 +3993,7 @@
         // that silently does nothing when pressed.
         playing = actuallyPlaying;
         record.classList.toggle('spinning', playing);
-        tonearm.classList.toggle('playing', playing);
+        tonearmLift(playing);
         playIcon.innerHTML = playing
           ? '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>'
           : '<path d="M8 5v14l11-7z"/>';
@@ -3870,6 +4010,7 @@
     duration = ytPlayer.getDuration() || duration;
     totalTimeEl.textContent = fmt(duration);
     updateProgress();
+    updateTonearmSweep();
     maybeStartCrossfade();
   }
 
@@ -3878,6 +4019,36 @@
     progressFill.style.width = pct + '%';
     progressKnob.style.left = pct + '%';
     curTimeEl.textContent = fmt(elapsed);
+  }
+
+  // ---------- Tonearm sweep ----------
+  // While a track plays, the arm creeps inward from the outer groove toward
+  // the label as elapsed/duration advances — the lift/drop (.playing class,
+  // slow transition) stays separate from this continuous inward sweep (fast
+  // transition), so dropping the needle and tracking across the record read
+  // as two different kinds of motion, like the real thing.
+  const TONEARM_START_DEG = 15;   // just landed, outer edge of the record
+  const TONEARM_END_DEG = 34;     // swept in near the label
+  function updateTonearmSweep(){
+    if(!playing || tonearm.classList.contains('lifting')) return;
+    const pct = duration ? Math.min(1, elapsed / duration) : 0;
+    const angle = TONEARM_START_DEG + pct * (TONEARM_END_DEG - TONEARM_START_DEG);
+    tonearm.style.setProperty('--arm-angle', angle + 'deg');
+  }
+  function resetTonearmSweep(){
+    tonearm.style.removeProperty('--arm-angle');
+  }
+  // Toggles the lift/drop state with the slower transition, then hands off
+  // to the fast per-tick sweep transition once the drop has settled.
+  function tonearmLift(isPlaying){
+    tonearm.classList.add('lifting');
+    tonearm.classList.toggle('playing', isPlaying);
+    if(!isPlaying) resetTonearmSweep();
+    clearTimeout(tonearm._liftTimer);
+    tonearm._liftTimer = setTimeout(() => {
+      tonearm.classList.remove('lifting');
+      if(isPlaying) updateTonearmSweep();
+    }, 950);
   }
 
   function nextTrack(){
@@ -3900,6 +4071,39 @@
   document.getElementById('nextBtn').addEventListener('click', nextTrack);
   document.getElementById('prevBtn').addEventListener('click', prevTrack);
 
+  // ---------- Keyboard shortcuts ----------
+  // Space: play/pause · Left/Right: prev/next · /: focus library search.
+  // Suppressed while typing in any input/textarea/contenteditable, or while
+  // a modal overlay is open, so shortcuts don't fight with normal typing.
+  function isTypingTarget(el){
+    if(!el) return false;
+    const tag = el.tagName;
+    return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el.isContentEditable;
+  }
+  function anyModalOpen(){
+    return !!document.querySelector('.modal-overlay.show');
+  }
+  document.addEventListener('keydown', (e) => {
+    if(e.metaKey || e.ctrlKey || e.altKey) return;
+    if(isTypingTarget(e.target) || anyModalOpen()) return;
+
+    if(e.key === ' ' || e.code === 'Space'){
+      e.preventDefault();
+      stopPreview();
+      setPlaying(!playing);
+    } else if(e.key === 'ArrowRight'){
+      e.preventDefault();
+      nextTrack();
+    } else if(e.key === 'ArrowLeft'){
+      e.preventDefault();
+      prevTrack();
+    } else if(e.key === '/'){
+      e.preventDefault();
+      if(!sidebar.classList.contains('open') || extView !== 'all') openExtPanel('all');
+      setTimeout(() => extSearchInput.focus(), 0);
+    }
+  });
+
   progressTrack.addEventListener('click', (e) => {
     if(!ytReady) return;
     cancelCrossfade();
@@ -3908,6 +4112,7 @@
     elapsed = pct * duration;
     ytPlayer.seekTo(elapsed, true);
     updateProgress();
+    updateTonearmSweep();
   });
 
   // ---------- Crossfade / crackle toggles ----------
@@ -4068,6 +4273,8 @@
   const editArtUrlInput = document.getElementById('editArtUrlInput');
   const editArtFileInput = document.getElementById('editArtFileInput');
   const editArtPreview = document.getElementById('editArtPreview');
+  const editVideoUrlInput = document.getElementById('editVideoUrlInput');
+  const editVideoWarning = document.getElementById('editVideoWarning');
   let editingTrackId = null;
   let editingArtData = '';
 
@@ -4075,7 +4282,7 @@
     editArtPreview.style.backgroundImage = src ? `url("${src}")` : 'none';
   }
 
-  function openEditModal(trackId){
+  function openEditModal(trackId, opts){
     const t = trackById(trackId);
     if(!t) return;
     editingTrackId = trackId;
@@ -4087,7 +4294,13 @@
     editArtUrlInput.value = (t.art && !t.art.startsWith('data:')) ? t.art : '';
     editArtFileInput.value = '';
     updateEditArtPreview(t.art || '');
+    editVideoUrlInput.value = '';
+    editVideoUrlInput.placeholder = t.videoId ? `youtube.com/watch?v=${t.videoId}` : 'Paste a YouTube link…';
+    editVideoWarning.style.display = t.unavailable ? 'block' : 'none';
     editOverlay.classList.add('show');
+    if(opts && opts.focusVideoUrl){
+      setTimeout(() => editVideoUrlInput.focus(), 0);
+    }
   }
   function closeEditModal(){
     editOverlay.classList.remove('show');
@@ -4174,6 +4387,18 @@
     t.trackNo = Number.isFinite(trackNoNum) && trackNoNum > 0 ? trackNoNum : null;
     const urlArt = editArtUrlInput.value.trim();
     t.art = editingArtData || urlArt || '';
+    const newVideoUrl = editVideoUrlInput.value.trim();
+    let relinked = false;
+    if(newVideoUrl){
+      const newId = extractVideoId(newVideoUrl);
+      if(newId && newId !== t.videoId){
+        t.videoId = newId;
+        t.unavailable = false;
+        relinked = true;
+      } else if(newId){
+        t.unavailable = false;
+      }
+    }
     saveTracks();
     renderCrate(); renderPlaylistNav(); renderUpNext();
     if(queue[current] && queue[current].id === t.id){
@@ -4181,6 +4406,15 @@
       trackArtist.textContent = cleanArtist(t.artist);
       updateLabel(t);
       applyRecordArt(t);
+      // If the now-playing track was just relinked to a new video, reload
+      // the iframe against the fixed id instead of leaving it pointed at
+      // the dead one.
+      if(relinked && ytReady){
+        ytPlayer.loadVideoById(t.videoId);
+        applyVolume();
+        if(!playing) ytPlayer.pauseVideo();
+        setPlaying(playing);
+      }
     }
     closeEditModal();
   });
