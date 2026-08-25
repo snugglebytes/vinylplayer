@@ -2431,6 +2431,21 @@
   // ---------- Up-next panel ----------
   let dragSrcIndex = null;
 
+  // Moves a not-yet-played track from later in the queue to right after the
+  // currently playing one, then starts it — instead of jumping the play
+  // pointer straight to its old position (which would silently skip every
+  // song that was queued in between). Everything that was between the
+  // current track and the clicked one keeps its relative order and shifts
+  // down to play right after this one finishes.
+  function playFromUpNext(i){
+    if(i <= current) return; // already-playing or already-played row, ignore
+    const [item] = queue.splice(i, 1);
+    const insertAt = current + 1;
+    queue.splice(insertAt, 0, item);
+    current = insertAt;
+    loadCurrent(true);
+  }
+
   function reorderQueue(from, to){
     if(from === to || from == null || to == null) return;
     const movingId = queue[current] ? queue[current].id : null;
@@ -2448,21 +2463,24 @@
   // tearing down and rebuilding the whole list, so the highlight bar's
   // background transition actually animates and nothing else in the list
   // reflows (no more momentary padding/scrollbar jump on every track change).
+  // Rows correspond to the *visible* (unplayed-forward) slice of the queue,
+  // so row 0 is always the now-playing track.
   function updateNowPlayingHighlight(){
     const rows = upnextList.querySelectorAll('.upnext-row');
-    if(rows.length !== queue.length){ renderUpNext(); return; }
+    const visibleCount = Math.max(0, queue.length - current);
+    if(rows.length !== visibleCount){ renderUpNext(); return; }
     let currentRow = null;
-    for(let i = 0; i < rows.length; i++){
-      const row = rows[i];
-      const isPlaying = (i === current);
+    for(let vi = 0; vi < rows.length; vi++){
+      const row = rows[vi];
+      const isPlaying = (vi === 0);
       row.classList.toggle('now-playing', isPlaying);
       if(isPlaying) currentRow = row;
       const idxCell = row.querySelector('.upnext-idx');
       if(!idxCell) continue;
-      if(isPlaying && playing){
-        idxCell.innerHTML = '<div class="eq-bars"><span></span><span></span><span></span></div>';
+      if(isPlaying){
+        idxCell.innerHTML = playing ? '<div class="eq-bars"><span></span><span></span><span></span></div>' : '';
       } else {
-        idxCell.textContent = i + 1;
+        idxCell.textContent = vi;
       }
     }
     positionUpNextHighlight(currentRow);
@@ -2480,13 +2498,20 @@
       upnextList.appendChild(empty);
       return;
     }
+    // Only the now-playing track and what's still ahead of it are shown —
+    // already-played tracks stay in `queue` (so "loop playlist" still cycles
+    // back through them) but drop out of view, the way YT Music's queue
+    // keeps the current song pinned at the top instead of you scrolling
+    // past everything you've already heard.
     let currentRow = null;
-    queue.forEach((t, i) => {
+    const visible = queue.slice(current);
+    visible.forEach((t, vi) => {
+      const i = current + vi; // actual index into `queue`
       const row = document.createElement('div');
-      row.className = 'upnext-row' + (i === current ? ' now-playing' : '') + (t.unavailable ? ' unavailable' : '');
-      row.draggable = true;
+      row.className = 'upnext-row' + (vi === 0 ? ' now-playing' : '') + (t.unavailable ? ' unavailable' : '');
+      row.draggable = (vi !== 0); // the pinned now-playing row doesn't reorder
       row.innerHTML = `
-        <div class="upnext-idx">${i === current ? '' : i + 1}</div>
+        <div class="upnext-idx">${vi === 0 ? '' : vi}</div>
         <div class="upnext-meta">
           <div class="t">${t.unavailable ? '<span class="unavailable-flag" title="This link stopped working">⚠</span> ' : ''}${escapeHtml(t.title)}</div>
           <div class="a">${escapeHtml(cleanArtist(t.artist))}</div>
@@ -2503,12 +2528,11 @@
           openEditModal(t.id, { focusVideoUrl: true });
         });
       }
-      if(i === current){
+      if(vi === 0){
         const idxCell = row.querySelector('.upnext-idx');
-        idxCell.innerHTML = '<div class="eq-bars"><span></span><span></span><span></span></div>';
-        if(!playing) idxCell.innerHTML = (i+1);
+        idxCell.innerHTML = playing ? '<div class="eq-bars"><span></span><span></span><span></span></div>' : '';
       }
-      row.addEventListener('click', () => { current = i; loadCurrent(true); });
+      row.addEventListener('click', () => playFromUpNext(i));
       row.querySelector('.upnext-menu-btn').addEventListener('click', (e) => {
         e.stopPropagation();
         showTrackContextMenu(e.currentTarget, t, { source: 'upnext' });
@@ -2526,19 +2550,21 @@
         dragSrcIndex = null;
       });
       row.addEventListener('dragover', (e) => {
+        if(vi === 0) return; // can't drop onto the pinned now-playing row
         e.preventDefault();
         e.dataTransfer.dropEffect = 'move';
         row.classList.add('drag-over');
       });
       row.addEventListener('dragleave', () => row.classList.remove('drag-over'));
       row.addEventListener('drop', (e) => {
+        if(vi === 0) return;
         e.preventDefault();
         row.classList.remove('drag-over');
         reorderQueue(dragSrcIndex, i);
       });
 
       upnextList.appendChild(row);
-      if(i === current) currentRow = row;
+      if(vi === 0) currentRow = row;
     });
     positionUpNextHighlight(currentRow);
   }
