@@ -239,7 +239,7 @@
     cursor:pointer;
     position: relative;
     z-index: 1;
-    transition: background 0.15s ease, opacity 0.15s ease;
+    transition: background 0.15s ease, opacity 0.15s ease, transform 0.32s cubic-bezier(.4,0,.2,1);
   }
   .upnext-row:hover{ background: rgba(var(--text-tint-rgb),0.06); }
   .upnext-row.dragging{ opacity: 0.35; }
@@ -2536,15 +2536,24 @@
   // down to play right after this one finishes.
   function playFromUpNext(i){
     if(i <= current) return; // already-playing or already-played row, ignore
+    const prevPositions = captureUpNextPositions();
     const [item] = queue.splice(i, 1);
     const insertAt = current + 1;
     queue.splice(insertAt, 0, item);
     current = insertAt;
     loadCurrent(true);
+    // loadCurrent() only patches classes on the rows that already existed
+    // (via updateNowPlayingHighlight) — it doesn't rebuild their content, so
+    // the list would otherwise keep showing the pre-reorder titles until
+    // something else happened to trigger a full renderUpNext(). Rebuild now
+    // and animate every row from where it used to be to where it landed.
+    renderUpNext();
+    animateUpNextFromPositions(prevPositions);
   }
 
   function reorderQueue(from, to){
     if(from === to || from == null || to == null) return;
+    const prevPositions = captureUpNextPositions();
     const movingId = queue[current] ? queue[current].id : null;
     const [item] = queue.splice(from, 1);
     queue.splice(to, 0, item);
@@ -2553,6 +2562,7 @@
       if(newIndex !== -1) current = newIndex;
     }
     renderUpNext();
+    animateUpNextFromPositions(prevPositions);
   }
 
   // Lightweight update used when only the current index / play-state changes
@@ -2583,6 +2593,38 @@
     positionUpNextHighlight(currentRow);
   }
 
+  // FLIP reorder animation for the Up Next list: call captureUpNextPositions()
+  // *before* mutating `queue`/re-rendering, then animateUpNextFromPositions()
+  // right after the re-render. Rows are matched by track id (not index), so
+  // a track that moved several slots is seen sliding smoothly to its new
+  // spot instead of the list just snapping to the new order.
+  function captureUpNextPositions(){
+    const positions = new Map();
+    upnextList.querySelectorAll('.upnext-row').forEach(row => {
+      const id = row.dataset.trackId;
+      if(id) positions.set(id, row.getBoundingClientRect().top);
+    });
+    return positions;
+  }
+  function animateUpNextFromPositions(prevPositions){
+    if(!prevPositions || prevPositions.size === 0) return;
+    const rows = upnextList.querySelectorAll('.upnext-row');
+    rows.forEach(row => {
+      const id = row.dataset.trackId;
+      const prevTop = id ? prevPositions.get(id) : undefined;
+      if(prevTop === undefined) return; // newly-appeared row — just let it fade/settle normally
+      const delta = prevTop - row.getBoundingClientRect().top;
+      if(Math.abs(delta) < 1) return;
+      row.style.transition = 'none';
+      row.style.transform = `translateY(${delta}px)`;
+      row.getBoundingClientRect(); // force reflow so the jump above applies before we animate away from it
+      requestAnimationFrame(() => {
+        row.style.transition = '';
+        row.style.transform = '';
+      });
+    });
+  }
+
   function renderUpNext(){
     upnextLabel.textContent = (queueLabel === 'All Songs' ? 'Playing from All Songs' : 'Playing from ' + queueLabel);
     upnextList.innerHTML = '';
@@ -2606,6 +2648,7 @@
       const i = current + vi; // actual index into `queue`
       const row = document.createElement('div');
       row.className = 'upnext-row' + (vi === 0 ? ' now-playing' : '') + (t.unavailable ? ' unavailable' : '');
+      row.dataset.trackId = t.id;
       row.draggable = (vi !== 0); // the pinned now-playing row doesn't reorder
       row.innerHTML = `
         <div class="upnext-idx">${vi === 0 ? '' : vi}</div>
