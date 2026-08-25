@@ -28,6 +28,39 @@
     --label-ink: #121212;
     --label-ink-soft: rgba(18,18,18,0.68);
     --shadow: rgba(0,0,0,0.6);
+    /* Secondary/translucent text & icon tint — kept as an RGB triplet so it
+       can be dropped straight into rgba(var(--text-tint-rgb), X) call sites
+       at whatever opacity each one already uses. */
+    --text-tint-rgb: 244,234,217;
+    /* Panel gradients (page background, console housing, toasts) — split out
+       from --walnut-* so each surface can shift independently per theme. */
+    --bg-radial-1: #202020;
+    --bg-radial-2: #131313;
+    --bg-linear-2: #080808;
+    --console-1: #1e1e1e;
+    --console-2: #171717;
+  }
+
+  [data-theme="silver"]{
+    --walnut-dark: #d7d9dc;
+    --walnut: #eceeef;
+    --walnut-light: #ffffff;
+    --brass: #9a9fa6;
+    --brass-bright: #40444c;
+    --cream: #202124;
+    --label-red: #c7cad0;
+    --label-red-dark: #b3b7bd;
+    --label-face: #e8e9eb;
+    --label-face-dark: #aaadb3;
+    --label-ink: #1c1c1e;
+    --label-ink-soft: rgba(28,28,30,0.68);
+    --shadow: rgba(60,64,72,0.25);
+    --text-tint-rgb: 32,33,36;
+    --bg-radial-1: #f2f3f4;
+    --bg-radial-2: #e4e6e8;
+    --bg-linear-2: #cdd0d4;
+    --console-1: #f6f7f8;
+    --console-2: #e6e8ea;
   }
 
   *{ box-sizing:border-box; margin:0; padding:0; }
@@ -36,15 +69,16 @@
     min-height:100vh;
     overflow-x: hidden;
     background:
-      radial-gradient(ellipse at 30% 0%, #202020 0%, transparent 55%),
-      radial-gradient(ellipse at 80% 100%, #131313 0%, transparent 55%),
-      linear-gradient(160deg, var(--walnut-dark), #080808 70%);
+      radial-gradient(ellipse at 30% 0%, var(--bg-radial-1) 0%, transparent 55%),
+      radial-gradient(ellipse at 80% 100%, var(--bg-radial-2) 0%, transparent 55%),
+      linear-gradient(160deg, var(--walnut-dark), var(--bg-linear-2) 70%);
     color: var(--cream);
     font-family: 'Space Mono', monospace;
     display:flex;
     align-items:center;
     justify-content:center;
     padding: 32px 16px;
+    transition: background 0.25s ease, color 0.25s ease;
   }
 
   /* ---- App shell: wood console + the embedded Up Next panel, side by side ---- */
@@ -64,7 +98,7 @@
     max-width: 760px;
     flex: 1 1 440px;
     min-width: 300px;
-    background: linear-gradient(150deg, #1e1e1e, #171717 55%, var(--walnut-dark));
+    background: linear-gradient(150deg, var(--console-1), var(--console-2) 55%, var(--walnut-dark));
     border-radius: 18px;
     padding: 28px 26px 22px;
     box-shadow: 0 30px 60px var(--shadow), inset 0 0 0 1px rgba(143,143,143,0.08);
@@ -107,7 +141,7 @@
     font-size:10px;
     letter-spacing: 2px;
     text-transform:uppercase;
-    color: rgba(244,234,217,0.55);
+    color: rgba(var(--text-tint-rgb),0.55);
   }
 
   .header-right{
@@ -138,7 +172,7 @@
     border-radius: 5px;
     border: none;
     background: transparent;
-    color: rgba(244,234,217,0.55);
+    color: rgba(var(--text-tint-rgb),0.55);
     font-family: 'Space Mono', monospace;
     font-size: 10px;
     font-weight: 600;
@@ -166,7 +200,7 @@
 
   .upnext-label{
     font-size:10px; letter-spacing:2px; text-transform:uppercase;
-    color: rgba(244,234,217,0.5);
+    color: rgba(var(--text-tint-rgb),0.5);
     margin-bottom: 12px;
   }
 
@@ -194,7 +228,7 @@
 
   .upnext-empty{
     font-size: 11px;
-    color: rgba(244,234,217,0.35);
+    color: rgba(var(--text-tint-rgb),0.35);
     line-height: 1.6;
   }
 
@@ -207,7 +241,7 @@
     z-index: 1;
     transition: background 0.15s ease, opacity 0.15s ease;
   }
-  .upnext-row:hover{ background: rgba(244,234,217,0.06); }
+  .upnext-row:hover{ background: rgba(var(--text-tint-rgb),0.06); }
   .upnext-row.dragging{ opacity: 0.35; }
   .upnext-row.drag-over{ box-shadow: inset 0 2px 0 0 var(--brass-bright); }
   .upnext-row.unavailable .upnext-meta{ opacity: 0.55; }
@@ -234,7 +268,7 @@
     transform: translate(-50%, 12px);
     max-width: min(420px, calc(100vw - 32px));
     display:flex; align-items:center; gap:12px;
-    background: linear-gradient(150deg, #222, #161616);
+    background: linear-gradient(150deg, var(--console-1), var(--console-2));
     color: var(--cream);
     border-radius: 10px;
     padding: 12px 14px;
@@ -261,7 +295,7 @@
   }
   .toast-action:hover{ background: rgba(217,164,65,0.28); }
   .toast-close{
-    background:none; border:none; color: rgba(244,234,217,0.5); cursor:pointer;
+    background:none; border:none; color: rgba(var(--text-tint-rgb),0.5); cursor:pointer;
     font-size: 14px; line-height:1; padding: 2px;
   }
   .toast-close:hover{ color: var(--cream); }
@@ -279,7 +313,7 @@
 
   .upnext-idx{
     width: 16px; height:16px; flex-shrink:0;
-    font-size: 10px; color: rgba(244,234,217,0.4);
+    font-size: 10px; color: rgba(var(--text-tint-rgb),0.4);
     display:flex; align-items:center; justify-content:center;
     text-align:center;
   }
@@ -287,7 +321,7 @@
 
   .upnext-meta{ min-width:0; flex:1; text-align:left; }
   .upnext-meta .t{ font-size:12px; color: var(--cream); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-align:left; }
-  .upnext-meta .a{ font-size:9.5px; color: rgba(244,234,217,0.45); text-align:left; }
+  .upnext-meta .a{ font-size:9.5px; color: rgba(var(--text-tint-rgb),0.45); text-align:left; }
 
   .upnext-actions{
     display:flex; align-items:center; gap:2px; flex-shrink:0;
@@ -297,7 +331,7 @@
 
   .upnext-drag-handle{
     display:flex; align-items:center; justify-content:center;
-    color: rgba(244,234,217,0.3);
+    color: rgba(var(--text-tint-rgb),0.3);
     padding: 4px;
     opacity: 0;
     cursor: grab;
@@ -579,12 +613,12 @@
   /* ---- Progress ---- */
   .progress-row{
     display:flex; align-items:center; gap:10px;
-    font-size: 10px; color: rgba(244,234,217,0.6);
+    font-size: 10px; color: rgba(var(--text-tint-rgb),0.6);
     margin-bottom: 18px;
   }
   .progress-track{
     flex:1; height: 3px; border-radius: 2px;
-    background: rgba(244,234,217,0.15);
+    background: rgba(var(--text-tint-rgb),0.15);
     position:relative; cursor:pointer;
   }
   .progress-fill{
@@ -647,7 +681,7 @@
   }
   .volume-icon{
     background:none; border:none; cursor:pointer;
-    color: rgba(244,234,217,0.6);
+    color: rgba(var(--text-tint-rgb),0.6);
     display:flex; align-items:center; justify-content:center;
     flex-shrink:0;
     padding: 2px;
@@ -658,7 +692,7 @@
   .volume-icon.toggle-btn.active{ opacity: 1; color: var(--brass-bright); }
   .volume-track{
     flex:1; height: 3px; border-radius: 2px;
-    background: rgba(244,234,217,0.15);
+    background: rgba(var(--text-tint-rgb),0.15);
     position:relative; cursor:pointer;
   }
   .volume-fill{
@@ -763,7 +797,7 @@
   }
   .sidebar-close{
     background:none; border:none; cursor:pointer;
-    color: rgba(244,234,217,0.6);
+    color: rgba(var(--text-tint-rgb),0.6);
     padding: 4px;
     display:flex;
   }
@@ -778,10 +812,10 @@
     color: var(--cream);
     transition: background 0.15s ease;
   }
-  .nav-item:hover{ background: rgba(244,234,217,0.06); }
+  .nav-item:hover{ background: rgba(var(--text-tint-rgb),0.06); }
   .nav-item.active{ background: rgba(143,143,143,0.18); }
   .nav-item svg{ flex-shrink:0; opacity:0.75; }
-  .nav-item .count{ margin-left:auto; font-size:10px; color: rgba(244,234,217,0.4); }
+  .nav-item .count{ margin-left:auto; font-size:10px; color: rgba(var(--text-tint-rgb),0.4); }
 
   /* Playlist rows swap their music icon for a play icon on hover, so the
      icon itself becomes a "play this playlist" affordance without touching
@@ -812,7 +846,7 @@
     font-size: 9.5px;
     letter-spacing: 1.5px;
     text-transform: uppercase;
-    color: rgba(244,234,217,0.35);
+    color: rgba(var(--text-tint-rgb),0.35);
     padding: 4px 10px 6px;
   }
 
@@ -825,7 +859,7 @@
     background:none; border: 1px dashed rgba(143,143,143,0.35);
     border-radius: 8px;
     padding: 10px 10px;
-    color: rgba(244,234,217,0.65);
+    color: rgba(var(--text-tint-rgb),0.65);
     font-family: 'Space Mono', monospace;
     font-size: 12px;
     cursor:pointer;
@@ -835,6 +869,44 @@
   }
   .new-playlist-btn:hover{ border-color: var(--brass-bright); color: var(--brass-bright); }
 
+  /* ---- Theme picker — pinned to the bottom of the sidebar, styled to
+     match the vinyl-layout picker in the header (small pill of buttons). ---- */
+  .theme-picker{
+    flex-shrink: 0;
+    display:flex; align-items:center; justify-content:space-between;
+    margin-top: 14px;
+    padding-top: 14px;
+    border-top: 1px solid rgba(143,143,143,0.2);
+  }
+  .theme-picker-label{
+    font-size:10px; letter-spacing:2px; text-transform:uppercase;
+    color: rgba(var(--text-tint-rgb),0.5);
+  }
+  .theme-picker-btns{
+    display:flex; align-items:center; gap:4px;
+    padding: 3px;
+    border-radius: 9px;
+    background: rgba(0,0,0,0.18);
+  }
+  .theme-btn{
+    width: 26px; height: 26px;
+    border-radius: 6px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    display:flex; align-items:center; justify-content:center;
+    transition: background 0.15s ease;
+  }
+  .theme-btn.active{ background: var(--brass); }
+  .theme-swatch{
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    display:block;
+    box-shadow: 0 0 0 1px rgba(0,0,0,0.35), inset 0 1px 1px rgba(255,255,255,0.25);
+  }
+  .theme-swatch-walnut{ background: linear-gradient(135deg, #3a3a3a, #0c0c0c); }
+  .theme-swatch-silver{ background: linear-gradient(135deg, #f4f5f6, #c3c6ca); }
+
   /* ---- Extended sidebar (song list panel) ---- */
   .sidebar-ext{
     position: fixed;
@@ -842,7 +914,7 @@
     left: min(300px, 82vw);
     height: 100%;
     width: min(340px, 82vw);
-    background: linear-gradient(170deg, #1e1e1e, var(--walnut-dark));
+    background: linear-gradient(170deg, var(--console-1), var(--walnut-dark));
     box-shadow: 8px 0 30px rgba(0,0,0,0.4);
     transform: translateX(-100%);
     opacity: 0;
@@ -877,14 +949,14 @@
   }
   .ext-back{
     background:none; border:none; cursor:pointer;
-    color: rgba(244,234,217,0.6);
+    color: rgba(var(--text-tint-rgb),0.6);
     padding:4px; display:flex; flex-shrink:0;
   }
   .ext-back:hover{ color: var(--cream); }
 
   .sort-btn{
     background:none; border:none; cursor:pointer;
-    color: rgba(244,234,217,0.45);
+    color: rgba(var(--text-tint-rgb),0.45);
     padding:4px; display:flex; flex-shrink:0;
     transition: color 0.15s ease;
   }
@@ -895,7 +967,7 @@
     font-size: 9.5px;
     letter-spacing: 1.5px;
     text-transform: uppercase;
-    color: rgba(244,234,217,0.4);
+    color: rgba(var(--text-tint-rgb),0.4);
     margin: -6px 0 10px 2px;
   }
 
@@ -946,7 +1018,7 @@
     outline: none;
     min-width: 0;
   }
-  .add-row input::placeholder{ color: rgba(244,234,217,0.35); }
+  .add-row input::placeholder{ color: rgba(var(--text-tint-rgb),0.35); }
   .add-row input:focus{ border-color: var(--brass); }
   .add-row button{
     position: absolute;
@@ -966,7 +1038,7 @@
   .search-row{ position:relative; margin-bottom: 10px; }
   .search-row .search-icon{
     position:absolute; left:10px; top:50%; transform:translateY(-50%);
-    color: rgba(244,234,217,0.35);
+    color: rgba(var(--text-tint-rgb),0.35);
     pointer-events:none;
   }
   .search-row input{
@@ -980,7 +1052,7 @@
     color: var(--cream);
     outline: none;
   }
-  .search-row input::placeholder{ color: rgba(244,234,217,0.35); }
+  .search-row input::placeholder{ color: rgba(var(--text-tint-rgb),0.35); }
   .search-row input:focus{ border-color: var(--brass); }
 
   /* ---- Mini search bar inside the Suggested block ---- */
@@ -992,7 +1064,7 @@
   .suggest-results-box{ min-height: 352px; }
   .suggest-search-row .search-icon{
     position:absolute; left:9px; top:50%; transform:translateY(-50%);
-    color: rgba(244,234,217,0.3);
+    color: rgba(var(--text-tint-rgb),0.3);
     pointer-events:none;
   }
   .suggest-search-row input{
@@ -1006,7 +1078,7 @@
     color: var(--cream);
     outline: none;
   }
-  .suggest-search-row input::placeholder{ color: rgba(244,234,217,0.3); }
+  .suggest-search-row input::placeholder{ color: rgba(var(--text-tint-rgb),0.3); }
   .suggest-search-row input:focus{ border-color: var(--brass); }
 
   .crate{
@@ -1019,7 +1091,7 @@
 
   .crate-empty{
     font-size: 11px;
-    color: rgba(244,234,217,0.35);
+    color: rgba(var(--text-tint-rgb),0.35);
     line-height: 1.6;
     padding: 6px 4px;
   }
@@ -1031,7 +1103,7 @@
     cursor:pointer;
     transition: background 0.15s ease;
   }
-  .track-row:hover{ background: rgba(244,234,217,0.06); }
+  .track-row:hover{ background: rgba(var(--text-tint-rgb),0.06); }
   .track-row.active{ background: rgba(143,143,143,0.15); }
 
   .mini-disc{
@@ -1084,7 +1156,7 @@
 
   .track-meta{ flex:1; min-width:0; }
   .track-meta .t{ font-size:12.5px; color:var(--cream); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .track-meta .a{ font-size:10px; color:rgba(244,234,217,0.5); }
+  .track-meta .a{ font-size:10px; color:rgba(var(--text-tint-rgb),0.5); }
 
   /* ---- Album list row (art thumbnail on the right) ---- */
   .album-row{
@@ -1094,10 +1166,10 @@
     cursor:pointer;
     transition: background 0.15s ease;
   }
-  .album-row:hover{ background: rgba(244,234,217,0.06); }
+  .album-row:hover{ background: rgba(var(--text-tint-rgb),0.06); }
   .album-meta{ flex:1; min-width:0; }
   .album-meta .t{ font-size:12.5px; color:var(--cream); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .album-meta .a{ font-size:10px; color:rgba(244,234,217,0.5); }
+  .album-meta .a{ font-size:10px; color:rgba(var(--text-tint-rgb),0.5); }
   .album-art-thumb{
     width:32px; height:32px; border-radius:6px; flex-shrink:0;
     background: repeating-radial-gradient(circle, #0b0b0c 0 1px, #1c1c1c 1.5px 2px);
@@ -1113,7 +1185,7 @@
   }
   .icon-btn{
     background:none; border:none; cursor:pointer;
-    color: rgba(244,234,217,0.35);
+    color: rgba(var(--text-tint-rgb),0.35);
     padding: 4px;
     display:flex;
     opacity: 0;
@@ -1128,7 +1200,7 @@
   .track-row.drag-over{ box-shadow: inset 0 2px 0 0 var(--brass-bright); }
   .track-drag-handle{
     display:flex; align-items:center; justify-content:center;
-    color: rgba(244,234,217,0.3);
+    color: rgba(var(--text-tint-rgb),0.3);
     padding: 4px;
     opacity: 0;
     cursor: grab;
@@ -1145,7 +1217,7 @@
     font-size: 10px;
     letter-spacing: 1.5px;
     text-transform: uppercase;
-    color: rgba(244,234,217,0.4);
+    color: rgba(var(--text-tint-rgb),0.4);
     padding: 16px 8px 6px;
     margin-top: 6px;
     border-top: 1px solid rgba(143,143,143,0.15);
@@ -1175,7 +1247,7 @@
   .playlist-popover.show{ display:block; }
   .playlist-popover .pp-label{
     font-size: 9px; letter-spacing:1.5px; text-transform:uppercase;
-    color: rgba(244,234,217,0.4);
+    color: rgba(var(--text-tint-rgb),0.4);
     padding: 4px 8px 6px;
   }
   .playlist-popover .pp-item{
@@ -1183,7 +1255,7 @@
     padding: 8px 8px; border-radius:6px; cursor:pointer;
     font-size: 12px; color: var(--cream);
   }
-  .playlist-popover .pp-item:hover{ background: rgba(244,234,217,0.08); }
+  .playlist-popover .pp-item:hover{ background: rgba(var(--text-tint-rgb),0.08); }
   .playlist-popover .pp-check{
     width:13px; height:13px; border-radius:3px;
     border: 1px solid rgba(143,143,143,0.5);
@@ -1192,7 +1264,7 @@
   }
   .playlist-popover .pp-check.checked{ background: var(--brass-bright); border-color: var(--brass-bright); }
   .playlist-popover .pp-empty{
-    font-size: 11px; color: rgba(244,234,217,0.4); padding: 8px;
+    font-size: 11px; color: rgba(var(--text-tint-rgb),0.4); padding: 8px;
   }
 
   /* ---- Track context menu (opened from the ellipsis button) ---- */
@@ -1213,17 +1285,17 @@
     padding: 8px 9px; border-radius:6px; cursor:pointer;
     font-size: 12px; color: var(--cream);
   }
-  .track-context-menu .tcm-item:hover{ background: rgba(244,234,217,0.08); }
+  .track-context-menu .tcm-item:hover{ background: rgba(var(--text-tint-rgb),0.08); }
   .track-context-menu .tcm-item .tcm-icon{
     width:14px; height:14px; flex-shrink:0;
     display:flex; align-items:center; justify-content:center;
-    color: rgba(244,234,217,0.6);
+    color: rgba(var(--text-tint-rgb),0.6);
   }
   .track-context-menu .tcm-item .tcm-label{ flex:1; min-width:0; }
   .track-context-menu .tcm-item .tcm-key{
     font-size: 9.5px; letter-spacing:0.5px;
-    color: rgba(244,234,217,0.35);
-    border: 1px solid rgba(244,234,217,0.18);
+    color: rgba(var(--text-tint-rgb),0.35);
+    border: 1px solid rgba(var(--text-tint-rgb),0.18);
     border-radius: 4px;
     padding: 1px 5px;
     flex-shrink: 0;
@@ -1298,7 +1370,7 @@
     margin: 0;
   }
   .edit-field-row .edit-field.track-field input[type="number"]:focus{ border-color: var(--brass); }
-  .edit-field-row .edit-field.track-field input[type="number"]::placeholder{ color: rgba(244,234,217,0.35); }
+  .edit-field-row .edit-field.track-field input[type="number"]::placeholder{ color: rgba(var(--text-tint-rgb),0.35); }
   .track-number-wrap{ position: relative; }
   .track-number-stepper{
     position: absolute;
@@ -1327,7 +1399,7 @@
   .edit-field label{
     display:block;
     font-size: 9.5px; letter-spacing:1.5px; text-transform:uppercase;
-    color: rgba(244,234,217,0.45);
+    color: rgba(var(--text-tint-rgb),0.45);
     margin-bottom: 6px;
   }
   .edit-field input[type="text"]{
@@ -1342,7 +1414,7 @@
     outline: none;
   }
   .edit-field input[type="text"]:focus{ border-color: var(--brass); }
-  .edit-field input[type="text"]::placeholder{ color: rgba(244,234,217,0.35); }
+  .edit-field input[type="text"]::placeholder{ color: rgba(var(--text-tint-rgb),0.35); }
 
   /* ---- Album smart-suggestions dropdown (edit modal) ---- */
   .album-suggest{
@@ -1368,8 +1440,8 @@
     cursor: pointer;
     white-space: nowrap; overflow:hidden; text-overflow:ellipsis;
   }
-  .album-suggest .as-item span{ color: rgba(244,234,217,0.45); font-size: 10.5px; }
-  .album-suggest .as-item:hover, .album-suggest .as-item.active{ background: rgba(244,234,217,0.08); }
+  .album-suggest .as-item span{ color: rgba(var(--text-tint-rgb),0.45); font-size: 10.5px; }
+  .album-suggest .as-item:hover, .album-suggest .as-item.active{ background: rgba(var(--text-tint-rgb),0.08); }
 
   .edit-art-row{ display:flex; gap:10px; align-items:flex-start; }
   .edit-art-preview{
@@ -1382,7 +1454,7 @@
   .edit-art-inputs input[type="file"]{
     font-family: 'Space Mono', monospace;
     font-size: 10.5px;
-    color: rgba(244,234,217,0.55);
+    color: rgba(var(--text-tint-rgb),0.55);
   }
   .edit-art-inputs input[type="file"]::file-selector-button{
     background: rgba(143,143,143,0.18);
@@ -1407,10 +1479,10 @@
     font-weight:600; font-size:11px; letter-spacing:0.5px; text-transform:uppercase;
   }
   .edit-cancel-btn{
-    background: rgba(244,234,217,0.08);
-    color: rgba(244,234,217,0.75);
+    background: rgba(var(--text-tint-rgb),0.08);
+    color: rgba(var(--text-tint-rgb),0.75);
   }
-  .edit-cancel-btn:hover{ background: rgba(244,234,217,0.14); }
+  .edit-cancel-btn:hover{ background: rgba(var(--text-tint-rgb),0.14); }
   .edit-save-btn{
     background: linear-gradient(160deg, var(--brass-bright), var(--brass));
     color: var(--walnut-dark);
@@ -1612,6 +1684,17 @@
       <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2"/></svg>
       New playlist
     </button>
+  </div>
+  <div class="theme-picker" id="themePicker">
+    <div class="theme-picker-label">Theme</div>
+    <div class="theme-picker-btns">
+      <button class="theme-btn" id="themeBtnWalnut" data-theme="walnut" title="Walnut theme">
+        <span class="theme-swatch theme-swatch-walnut"></span>
+      </button>
+      <button class="theme-btn" id="themeBtnSilver" data-theme="silver" title="Silver theme">
+        <span class="theme-swatch theme-swatch-silver"></span>
+      </button>
+    </div>
   </div>
 </aside>
 
@@ -2427,6 +2510,20 @@
   layoutBtns.forEach(btn => {
     btn.addEventListener('click', () => setVinylLayout(btn.dataset.layout));
   });
+
+  // ---------- Theme picker (walnut / silver) ----------
+  const themeBtns = [document.getElementById('themeBtnWalnut'), document.getElementById('themeBtnSilver')];
+  let appTheme = localStorage.getItem('spindle_theme') || 'walnut';
+  function setTheme(mode){
+    appTheme = mode;
+    localStorage.setItem('spindle_theme', mode);
+    document.documentElement.setAttribute('data-theme', mode);
+    themeBtns.forEach(btn => btn.classList.toggle('active', btn.dataset.theme === mode));
+  }
+  themeBtns.forEach(btn => {
+    btn.addEventListener('click', () => setTheme(btn.dataset.theme));
+  });
+  setTheme(appTheme);
 
   // ---------- Up-next panel ----------
   let dragSrcIndex = null;
