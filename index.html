@@ -683,6 +683,24 @@
     text-transform: uppercase;
     color: var(--brass);
   }
+  .lyrics-btn{
+    display:inline-flex;
+    align-items:center;
+    gap: 5px;
+    margin-top: 10px;
+    background: rgba(var(--text-tint-rgb),0.08);
+    border: 1px solid rgba(143,143,143,0.2);
+    border-radius: 20px;
+    padding: 5px 12px;
+    color: rgba(var(--text-tint-rgb),0.65);
+    font-family: 'Space Mono', monospace;
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .lyrics-btn:hover{ background: rgba(var(--text-tint-rgb),0.14); color: var(--cream); }
 
   /* ---- Progress ---- */
   .progress-row{
@@ -1684,6 +1702,10 @@
       <div class="now-playing">
         <div class="track-title" id="trackTitle">—</div>
         <div class="track-artist" id="trackArtist">—</div>
+        <button class="lyrics-btn" id="lyricsBtn" title="Find lyrics for this song">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18V5l12-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zm12-2a3 3 0 1 1-6 0 3 3 0 0 1 6 0z"/></svg>
+          Lyrics
+        </button>
       </div>
 
       <div class="progress-row">
@@ -2288,6 +2310,23 @@
   const tonearm = document.getElementById('tonearm');
   const trackTitle = document.getElementById('trackTitle');
   const trackArtist = document.getElementById('trackArtist');
+  const lyricsBtn = document.getElementById('lyricsBtn');
+  // Opens a small popup window (not a full new tab) pointed at a search
+  // narrowed toward sites that publish proper line-by-line romanization for
+  // Korean lyrics (colorcodedlyrics, popgasa) alongside general sources —
+  // as close to "just the lyrics" as possible without Spindle itself
+  // fetching and displaying the copyrighted lyric text.
+  function openLyrics(){
+    const t = queue[current];
+    if(!t) return;
+    const query = `${t.title} ${cleanArtist(t.artist)} romanized lyrics site:colorcodedlyrics.com OR site:popgasa.com OR site:genius.com`;
+    const url = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+    const w = 420, h = 640;
+    const left = Math.round((screen.width - w) / 2);
+    const top = Math.round((screen.height - h) / 2);
+    window.open(url, 'spindleLyrics', `width=${w},height=${h},left=${left},top=${top},noopener,noreferrer`);
+  }
+  lyricsBtn.addEventListener('click', openLyrics);
   const labelTitle = document.getElementById('labelTitle');
   const labelArtistText = document.getElementById('labelArtistText');
   const labelAlbumTextEl = document.getElementById('labelAlbumTextEl');
