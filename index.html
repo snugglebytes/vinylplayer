@@ -875,6 +875,95 @@
     max-height: 60vh;
   }
 
+  /* ---- Queue / Lyrics tabs inside the Up Next panel ---- */
+  .panel-tabs{
+    display:flex; align-items:center; gap:4px;
+    padding: 3px;
+    border-radius: 9px;
+    background: rgba(0,0,0,0.18);
+  }
+  .panel-tab-btn{
+    border:none; background:transparent; cursor:pointer;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-family:'Space Mono', monospace;
+    font-size: 10.5px;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: rgba(var(--text-tint-rgb),0.55);
+    transition: background 0.15s ease, color 0.15s ease;
+  }
+  .panel-tab-btn:hover{ color: var(--brass-bright); }
+  .panel-tab-btn.active{
+    background: var(--ctrl-accent-2);
+    color: var(--ctrl-accent-fg);
+  }
+
+  .panel-tab-content{ display:none; }
+  .panel-tab-content.active{ display:block; }
+
+  .lyrics-panel{
+    display:flex; flex-direction:column;
+    gap: 8px;
+  }
+  .lyrics-panel-head{
+    display:flex; align-items:baseline; justify-content:space-between;
+    gap: 8px;
+  }
+  .lyrics-panel-song{ min-width:0; }
+  .lyrics-panel-song .t{
+    font-size: 12.5px; color: var(--cream);
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .lyrics-panel-song .a{
+    font-size: 10px; color: rgba(var(--text-tint-rgb),0.5);
+  }
+  .lyrics-open-link{
+    flex-shrink:0;
+    font-size: 10px; letter-spacing:0.5px; text-transform:uppercase;
+    color: var(--brass-bright);
+    text-decoration:none;
+    border: 1px solid rgba(143,143,143,0.3);
+    border-radius: 20px;
+    padding: 4px 10px;
+    white-space:nowrap;
+    transition: background 0.15s ease;
+  }
+  .lyrics-open-link:hover{ background: rgba(var(--text-tint-rgb),0.08); }
+  .lyrics-frame-wrap{
+    position:relative;
+    width:100%;
+    height: 55vh;
+    min-height: 280px;
+    border-radius: 10px;
+    overflow:hidden;
+    background: rgba(0,0,0,0.22);
+    box-shadow: inset 0 0 0 1px rgba(143,143,143,0.15);
+  }
+  .lyrics-frame-wrap iframe{
+    width:100%; height:100%; border:none;
+    background: #fff;
+  }
+  .lyrics-status{
+    position:absolute; inset:0;
+    display:flex; align-items:center; justify-content:center;
+    text-align:center;
+    padding: 20px;
+    font-size: 11.5px;
+    line-height:1.6;
+    color: rgba(var(--text-tint-rgb),0.55);
+    background: rgba(0,0,0,0.22);
+    pointer-events:none;
+  }
+  .lyrics-status a{ color: var(--brass-bright); pointer-events:auto; }
+  .lyrics-empty{
+    font-size: 11px;
+    color: rgba(var(--text-tint-rgb),0.35);
+    line-height: 1.6;
+    padding: 20px 4px;
+    text-align:center;
+  }
+
   .sidebar-head{
     display:flex; align-items:center; justify-content:space-between;
     margin-bottom: 18px;
@@ -1756,18 +1845,41 @@
 </div>
 
 <aside class="upnext-embed">
-  <div class="add-row" id="upnextAddRow">
-    <input type="text" id="upnextAddUrlInput" placeholder="Paste a YouTube link…" />
-    <button id="upnextAddBtn" title="Add track">
-      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
-    </button>
-  </div>
-  <div class="add-feedback" id="upnextAddFeedback"></div>
   <div class="now-playing-head">
-    <div class="now-playing-title">Up Next</div>
+    <div class="now-playing-title" id="panelTitle">Up Next</div>
+    <div class="panel-tabs" id="panelTabs">
+      <button class="panel-tab-btn active" id="tabBtnQueue" data-tab="queue">Queue</button>
+      <button class="panel-tab-btn" id="tabBtnLyrics" data-tab="lyrics">Lyrics</button>
+    </div>
   </div>
-  <div class="upnext-label" id="upnextLabel">Up next</div>
-  <div class="upnext-list" id="upnextList"></div>
+
+  <div class="panel-tab-content active" id="queueTabContent">
+    <div class="add-row" id="upnextAddRow">
+      <input type="text" id="upnextAddUrlInput" placeholder="Paste a YouTube link…" />
+      <button id="upnextAddBtn" title="Add track">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      </button>
+    </div>
+    <div class="add-feedback" id="upnextAddFeedback"></div>
+    <div class="upnext-label" id="upnextLabel">Up next</div>
+    <div class="upnext-list" id="upnextList"></div>
+  </div>
+
+  <div class="panel-tab-content" id="lyricsTabContent">
+    <div class="lyrics-panel" id="lyricsPanel">
+      <div class="lyrics-panel-head">
+        <div class="lyrics-panel-song">
+          <div class="t" id="lyricsSongTitle">—</div>
+          <div class="a" id="lyricsSongArtist">—</div>
+        </div>
+        <a class="lyrics-open-link" id="lyricsOpenLink" href="#" target="_blank" rel="noopener noreferrer">AZLyrics ↗</a>
+      </div>
+      <div class="lyrics-frame-wrap" id="lyricsFrameWrap">
+        <iframe id="lyricsFrame" title="Lyrics" referrerpolicy="no-referrer"></iframe>
+        <div class="lyrics-status" id="lyricsStatus"></div>
+      </div>
+    </div>
+  </div>
 </aside>
 
 </div>
@@ -2311,22 +2423,102 @@
   const trackTitle = document.getElementById('trackTitle');
   const trackArtist = document.getElementById('trackArtist');
   const lyricsBtn = document.getElementById('lyricsBtn');
-  // Opens a small popup window (not a full new tab) pointed at a search
-  // narrowed toward sites that publish proper line-by-line romanization for
-  // Korean lyrics (colorcodedlyrics, popgasa) alongside general sources —
-  // as close to "just the lyrics" as possible without Spindle itself
-  // fetching and displaying the copyrighted lyric text.
-  function openLyrics(){
-    const t = queue[current];
-    if(!t) return;
-    const query = `${t.title} ${cleanArtist(t.artist)} romanized lyrics site:colorcodedlyrics.com OR site:popgasa.com OR site:genius.com`;
-    const url = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
-    const w = 420, h = 640;
-    const left = Math.round((screen.width - w) / 2);
-    const top = Math.round((screen.height - h) / 2);
-    window.open(url, 'spindleLyrics', `width=${w},height=${h},left=${left},top=${top},noopener,noreferrer`);
+
+  // ---------- Queue / Lyrics tabs (Up Next panel) ----------
+  const panelTitle = document.getElementById('panelTitle');
+  const tabBtnQueue = document.getElementById('tabBtnQueue');
+  const tabBtnLyrics = document.getElementById('tabBtnLyrics');
+  const queueTabContent = document.getElementById('queueTabContent');
+  const lyricsTabContent = document.getElementById('lyricsTabContent');
+  const lyricsSongTitle = document.getElementById('lyricsSongTitle');
+  const lyricsSongArtist = document.getElementById('lyricsSongArtist');
+  const lyricsOpenLink = document.getElementById('lyricsOpenLink');
+  const lyricsFrame = document.getElementById('lyricsFrame');
+  const lyricsStatus = document.getElementById('lyricsStatus');
+  let activePanelTab = 'queue';
+
+  // AZLyrics URLs follow a fixed slug convention: lowercase, strip a
+  // leading "the", drop everything but a-z0-9. Not every song matches this
+  // exactly (AZLyrics has its own quirks/typos), so this is a best guess —
+  // the "AZLyrics ↗" link always lets you fall back to searching manually.
+  function azSlug(s){
+    return (s || '')
+      .toLowerCase()
+      .replace(/^the\s+/, '')
+      .replace(/&/g, 'and')
+      .replace(/[^a-z0-9]/g, '');
   }
-  lyricsBtn.addEventListener('click', openLyrics);
+  function azlyricsUrl(t){
+    if(!t) return null;
+    const artist = azSlug(cleanArtist(t.artist));
+    const title = azSlug(t.title);
+    if(!artist || !title) return null;
+    return `https://www.azlyrics.com/lyrics/${artist}/${title}.html`;
+  }
+
+  // Renders lyrics for track `t` into the panel. AZLyrics is embedded via
+  // iframe rather than fetched/parsed — Spindle never copies or stores the
+  // lyric text itself, it just frames the live page (some sites block
+  // being framed entirely, which is why the "AZLyrics ↗" link is always
+  // shown alongside it as a guaranteed fallback).
+  function renderLyricsFor(t){
+    if(!t){
+      lyricsSongTitle.textContent = '—';
+      lyricsSongArtist.textContent = '—';
+      lyricsFrame.src = 'about:blank';
+      lyricsOpenLink.style.display = 'none';
+      lyricsStatus.innerHTML = '<div class="lyrics-empty">Nothing playing yet.</div>';
+      lyricsStatus.style.display = 'flex';
+      return;
+    }
+    lyricsSongTitle.textContent = t.title;
+    lyricsSongArtist.textContent = cleanArtist(t.artist);
+    const url = azlyricsUrl(t);
+    if(!url){
+      lyricsFrame.src = 'about:blank';
+      lyricsOpenLink.style.display = 'none';
+      lyricsStatus.innerHTML = '<div class="lyrics-empty">Add an artist name to this song to look up lyrics.</div>';
+      lyricsStatus.style.display = 'flex';
+      return;
+    }
+    lyricsOpenLink.href = url;
+    lyricsOpenLink.style.display = '';
+    lyricsStatus.innerHTML = 'Loading lyrics from AZLyrics…';
+    lyricsStatus.style.display = 'flex';
+    lyricsFrame.src = url;
+    // AZLyrics may refuse to be framed for a given page; there's no
+    // reliable cross-origin way to detect that, so this just clears the
+    // "loading" hint after a moment and leaves the "AZLyrics ↗" link as
+    // the fallback if the frame stays blank.
+    lyricsFrame.onload = () => {
+      lyricsStatus.style.display = 'none';
+    };
+  }
+
+  function switchPanelTab(tab){
+    activePanelTab = tab;
+    tabBtnQueue.classList.toggle('active', tab === 'queue');
+    tabBtnLyrics.classList.toggle('active', tab === 'lyrics');
+    queueTabContent.classList.toggle('active', tab === 'queue');
+    lyricsTabContent.classList.toggle('active', tab === 'lyrics');
+    panelTitle.textContent = tab === 'queue' ? 'Up Next' : 'Lyrics';
+    if(tab === 'lyrics') renderLyricsFor(queue[current]);
+  }
+  tabBtnQueue.addEventListener('click', () => switchPanelTab('queue'));
+  tabBtnLyrics.addEventListener('click', () => switchPanelTab('lyrics'));
+
+  // Keeps the lyrics panel in sync with whatever track updateLabel() is
+  // reflecting (now-playing, a track that just got relinked/edited, or a
+  // preview), but only does the (cheap) work when that tab is visible.
+  function syncLyricsPanel(t){
+    if(activePanelTab !== 'lyrics') return;
+    renderLyricsFor(t);
+  }
+
+  lyricsBtn.addEventListener('click', () => {
+    switchPanelTab('lyrics');
+    document.querySelector('.upnext-embed').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  });
   const labelTitle = document.getElementById('labelTitle');
   const labelArtistText = document.getElementById('labelArtistText');
   const labelAlbumTextEl = document.getElementById('labelAlbumTextEl');
@@ -2444,6 +2636,7 @@
     const albumName = (t.album || '').trim();
     fitTextToArc(labelAlbumTextEl, labelTitle, labelArcTopPath, albumName || t.title, 9.5, 6.5);
     fitTextToArc(labelArtistTextEl, labelArtistText, labelArcBottomPath, cleanArtist(t.artist), 5, 3.8);
+    syncLyricsPanel(t);
   }
 
   // ---------- Vinyl layout (classic full-disc art vs. embedded-label art) ----------
