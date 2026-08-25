@@ -409,6 +409,40 @@
     display:flex; align-items:center; justify-content:center;
   }
 
+  /* ---- Slip mat: the ring of platter visible around the record's edge,
+     textured and ticked like a real turntable mat/strobe ring, so the
+     panel reads as a photographed player rather than a disc floating on
+     a plain gradient. Sits behind the sleeve/record (no z-index needed —
+     both of those set their own explicit z-index above this). ---- */
+  .platter-mat{
+    position:absolute;
+    inset: 3%;
+    border-radius: 50%;
+    background:
+      repeating-radial-gradient(circle, rgba(0,0,0,0.05) 0 1px, transparent 1.5px 4px),
+      radial-gradient(circle at 35% 30%, var(--plinth-1), var(--plinth-2) 78%);
+    box-shadow: inset 0 0 14px rgba(0,0,0,0.4), inset 0 0 0 1px rgba(255,255,255,0.04);
+  }
+  .platter-mat::after{
+    content:"";
+    position:absolute; inset:0;
+    border-radius:50%;
+    background: repeating-conic-gradient(rgba(255,255,255,0.1) 0deg 0.6deg, transparent 0.6deg 6deg);
+    mix-blend-mode: overlay;
+    opacity: 0.55;
+  }
+
+  /* ---- Spindle pin: the small raised metal post the record sits on ---- */
+  .spindle-pin{
+    position:absolute; top:50%; left:50%;
+    width: 4.5%; aspect-ratio: 1/1;
+    border-radius:50%;
+    transform: translate(-50%,-50%);
+    background: radial-gradient(circle at 35% 30%, #eaeaea, #8a8a8a 55%, #3f3f3f 100%);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.55), inset 0 1px 1px rgba(255,255,255,0.5);
+    z-index: 3;
+  }
+
   /* ---- Layout C: album sleeve peeking out from behind the disc. Sized to
      match the disc (86% of the panel, same as .record) so it reads as the
      same record's sleeve, and positioned so only ~20% of it sits behind the
@@ -1076,6 +1110,31 @@
   .add-row button:hover{ filter: brightness(1.05); }
 
   .search-row{ position:relative; margin-bottom: 10px; }
+
+  .artist-view-toggle{
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap: 8px;
+    margin-bottom: 10px;
+  }
+  .av-tab{
+    background:none;
+    border:none;
+    cursor:pointer;
+    padding: 4px 2px;
+    color: rgba(var(--text-tint-rgb),0.45);
+    font-family: 'Space Mono', monospace;
+    font-size: 11px;
+    letter-spacing: 0.5px;
+    transition: color 0.15s ease;
+  }
+  .av-tab:hover{ color: rgba(var(--text-tint-rgb),0.75); }
+  .av-tab.active{ color: var(--cream); font-weight: 700; }
+  .av-tab-sep{
+    font-size: 11px;
+    color: rgba(var(--text-tint-rgb),0.25);
+  }
   .search-row .search-icon{
     position:absolute; left:10px; top:50%; transform:translateY(-50%);
     color: rgba(var(--text-tint-rgb),0.35);
@@ -1580,6 +1639,7 @@
   <div class="main-layout">
     <div class="player-col">
       <div class="platter-wrap" id="platterWrap">
+        <div class="platter-mat"></div>
         <div class="sleeve" id="sleeve"></div>
         <div class="record" id="record">
           <div class="record-art" id="recordArt"></div>
@@ -1610,6 +1670,7 @@
               <circle cx="50" cy="50" r="3.6" class="label-hole"/>
             </svg>
           </div>
+          <div class="spindle-pin"></div>
         </div>
         <div class="tonearm" id="tonearm">
           <div class="arm-counterweight"></div>
@@ -1775,6 +1836,11 @@
   <div class="search-row" id="extSearchRow">
     <svg class="search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.35-4.35"/></svg>
     <input type="text" id="extSearchInput" placeholder="Search…" />
+  </div>
+  <div class="artist-view-toggle" id="artistViewToggle" style="display:none;">
+    <button class="av-tab active" id="artistTabSongs" data-mode="songs">Songs</button>
+    <span class="av-tab-sep">|</span>
+    <button class="av-tab" id="artistTabAlbums" data-mode="albums">Albums</button>
   </div>
   <div class="add-feedback" id="addFeedback"></div>
   <div class="sort-indicator" id="sortIndicator" style="display:none;"></div>
@@ -2764,6 +2830,20 @@
   const albumSortBtn = document.getElementById('albumSortBtn');
 
   let extView = null; // null | 'all' | playlistId
+  let artistViewMode = 'songs'; // 'songs' | 'albums' — which sub-view an open artist detail is showing
+  const artistViewToggle = document.getElementById('artistViewToggle');
+  const artistTabSongs = document.getElementById('artistTabSongs');
+  const artistTabAlbums = document.getElementById('artistTabAlbums');
+  function setArtistViewMode(mode){
+    artistViewMode = mode;
+    artistTabSongs.classList.toggle('active', mode === 'songs');
+    artistTabAlbums.classList.toggle('active', mode === 'albums');
+    extSearchTerm = '';
+    extSearchInput.value = '';
+    renderCrate();
+  }
+  artistTabSongs.addEventListener('click', () => setArtistViewMode('songs'));
+  artistTabAlbums.addEventListener('click', () => setArtistViewMode('albums'));
 
   const navAlbums = document.getElementById('navAlbums');
   const albumsCount = document.getElementById('albumsCount');
@@ -2918,6 +2998,7 @@
     extSearchInput.value = '';
     suggestSearchTerm = '';
     suggestSearchFocused = false;
+    artistViewToggle.style.display = 'none';
     renderPlaylistNav();
     scheduleShellShift();
   }
@@ -2941,6 +3022,7 @@
     extSearchInput.value = '';
     suggestSearchTerm = '';
     suggestSearchFocused = false;
+    artistViewToggle.style.display = 'none';
     if(view === 'all'){
       extTitle.textContent = 'All Songs';
       extAddRow.style.display = 'flex';
@@ -2992,6 +3074,10 @@
       extPlayBtn.title = 'Play artist';
       extQueueBtn.title = 'Add artist to queue';
       extSearchInput.placeholder = 'Search this artist…';
+      artistViewMode = 'songs';
+      artistTabSongs.classList.add('active');
+      artistTabAlbums.classList.remove('active');
+      artistViewToggle.style.display = 'flex';
     } else {
       const pl = playlists.find(p => p.id === view);
       extTitle.textContent = pl ? pl.name : 'Playlist';
@@ -3622,6 +3708,22 @@
         return;
       }
       artists.forEach(ar => renderArtistRow(ar, crate));
+      return;
+    }
+
+    if(extView && extView.startsWith('artist:') && artistViewMode === 'albums'){
+      const ar = getArtists().find(a => a.key === extView.slice('artist:'.length));
+      let albums = ar ? getAlbums().filter(al => normKey(al.artist) === ar.key) : [];
+      if(extSearchTerm){
+        albums = albums.filter(al => al.name.toLowerCase().includes(extSearchTerm));
+      }
+      if(albums.length === 0){
+        crate.innerHTML = '<div class="crate-empty">' +
+          (extSearchTerm ? 'No albums match your search.' : 'No albums tagged for this artist yet.') +
+          '</div>';
+        return;
+      }
+      albums.forEach(al => renderAlbumRow(al, crate));
       return;
     }
 
