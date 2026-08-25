@@ -4081,9 +4081,19 @@
     if(queue.length === 0) return;
     cancelCrossfade();
     let nextIndex = current + 1;
-    if(nextIndex >= queue.length) nextIndex = 0;
+    let justLooped = false;
+    if(nextIndex >= queue.length){
+      nextIndex = 0;
+      if(shuffle){
+        // Loop playlist + shuffle on: give the playlist a fresh shuffle for
+        // each new lap instead of replaying the exact same shuffled order.
+        queue = shuffleArray(queue);
+        justLooped = true;
+      }
+    }
     current = nextIndex;
     loadCurrent(true);
+    if(justLooped) renderUpNext(); // repaint with the freshly shuffled order
   }
 
   function prevTrack(){
