@@ -39,6 +39,23 @@
     --bg-linear-2: #080808;
     --console-1: #1e1e1e;
     --console-2: #171717;
+    /* Shadow cast by raised hardware (play button, tonearm parts) and the
+       turntable housing behind the disc — split out so silver can swap
+       these from "black ink" to "shadow on brushed metal" instead of
+       inheriting pure-black shadows that read as dirt/dust on a light
+       surface. */
+    --btn-shadow: rgba(0,0,0,0.5);
+    --plinth-1: #262626;
+    --plinth-2: #101010;
+    --plinth-shadow: rgba(0,0,0,0.7);
+    /* Raised accent-colored buttons (play, add-track, save) use their own
+       pair instead of reusing --brass-bright/--brass directly — in the
+       silver theme those two get repurposed as dark text/icon tints, so a
+       button built straight from them would render dark-on-light instead
+       of popping. */
+    --ctrl-accent-1: var(--brass-bright);
+    --ctrl-accent-2: var(--brass);
+    --ctrl-accent-fg: var(--walnut-dark);
   }
 
   [data-theme="silver"]{
@@ -61,6 +78,19 @@
     --bg-linear-2: #cdd0d4;
     --console-1: #f6f7f8;
     --console-2: #e6e8ea;
+    /* Soft cool-gray shadow (shadow-on-silver) instead of black ink, and a
+       lighter brushed-metal plinth behind the disc instead of near-black. */
+    --btn-shadow: rgba(90,96,108,0.32);
+    --plinth-1: #eef0f2;
+    --plinth-2: #c9ccd1;
+    --plinth-shadow: rgba(90,96,108,0.28);
+    /* Silver's brass-bright/brass are dark (used as text tints), so raised
+       buttons get their own brighter, more saturated steel-blue pair that
+       actually stands out against the light console instead of blending
+       into more gray. */
+    --ctrl-accent-1: #6b7684;
+    --ctrl-accent-2: #3d4552;
+    --ctrl-accent-fg: #f5f6f7;
   }
 
   *{ box-sizing:border-box; margin:0; padding:0; }
@@ -182,8 +212,8 @@
   }
   .layout-btn:hover{ color: var(--brass-bright); }
   .layout-btn.active{
-    background: var(--brass);
-    color: var(--walnut-dark);
+    background: var(--ctrl-accent-2);
+    color: var(--ctrl-accent-fg);
   }
 
   /* ---- Main layout: vinyl stands alone, nothing else shares its grid ---- */
@@ -364,8 +394,8 @@
     max-width: 380px;
     margin: 0 auto 10px;
     border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, #262626, #101010 75%);
-    box-shadow: inset 0 0 30px rgba(0,0,0,0.7), 0 10px 20px rgba(0,0,0,0.4);
+    background: radial-gradient(circle at 35% 30%, var(--plinth-1), var(--plinth-2) 75%);
+    box-shadow: inset 0 0 30px var(--plinth-shadow), 0 10px 20px var(--btn-shadow);
     display:flex; align-items:center; justify-content:center;
   }
 
@@ -385,10 +415,10 @@
     top: 6%; bottom: 6%;
     left: -62%; right: 76%;
     border-radius: 5px;
-    background-color: #101010;
+    background-color: var(--plinth-2);
     background-size: cover;
     background-position: center;
-    box-shadow: 0 14px 30px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(0,0,0,0.5);
+    box-shadow: 0 14px 30px var(--btn-shadow), inset 0 0 0 1px var(--btn-shadow);
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.2s ease, left 0.2s ease, right 0.2s ease;
@@ -409,7 +439,7 @@
     aspect-ratio: 1/1;
     border-radius: 50%;
     overflow: hidden;
-    box-shadow: 0 4px 18px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(255,255,255,0.05);
+    box-shadow: 0 4px 18px var(--btn-shadow), inset 0 0 0 1px rgba(255,255,255,0.05);
     animation: spin 6s linear infinite;
     animation-play-state: paused;
     display:flex; align-items:center; justify-content:center;
@@ -426,7 +456,7 @@
     position:absolute; inset:0;
     border-radius:50%;
     background:
-      radial-gradient(circle at 35% 30%, #262626, #0b0b0c 75%);
+      radial-gradient(circle at 35% 30%, var(--plinth-1), var(--plinth-2) 75%);
     background-size: cover;
     background-position: center;
   }
@@ -557,14 +587,14 @@
   .arm-counterweight{
     position:absolute; top:-4%; right:2%;
     width: 14px; height:14px; border-radius:50%;
-    background: radial-gradient(circle at 35% 30%, #3a3a3a, #0d0d0d 75%);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.6), 0 0 0 1px rgba(180,180,180,0.35);
+    background: radial-gradient(circle at 35% 30%, var(--plinth-1), var(--plinth-2) 75%);
+    box-shadow: 0 2px 4px var(--btn-shadow), 0 0 0 1px rgba(180,180,180,0.35);
   }
   .arm-base{
     position:absolute; top:2%; right:6%;
     width: 22px; height:22px; border-radius:50%;
     background: radial-gradient(circle at 35% 30%, var(--brass-bright), var(--brass) 70%, #5c5c5c);
-    box-shadow: 0 3px 6px rgba(0,0,0,0.5), 0 0 0 1px rgba(0,0,0,0.4);
+    box-shadow: 0 3px 6px var(--btn-shadow), 0 0 0 1px rgba(0,0,0,0.15);
     z-index:2;
   }
   .arm-rod{
@@ -573,14 +603,14 @@
     border-radius: 3px;
     background: linear-gradient(90deg, #5c5c5c, var(--brass-bright) 45%, #5c5c5c);
     transform-origin: top center;
-    box-shadow: 1px 0 2px rgba(0,0,0,0.4), 0 0 0 1px rgba(0,0,0,0.35);
+    box-shadow: 1px 0 2px var(--btn-shadow), 0 0 0 1px rgba(0,0,0,0.12);
   }
   .arm-head{
     position:absolute; bottom: -4px; left: 50%;
     transform: translateX(-50%) rotate(20deg);
     width: 20px; height: 11px; border-radius: 2px;
     background: linear-gradient(160deg, #4a4a4a, #1a1a1a);
-    box-shadow: 0 2px 4px rgba(0,0,0,0.6), 0 0 0 1.5px var(--brass-bright);
+    box-shadow: 0 2px 4px var(--btn-shadow), 0 0 0 1.5px var(--brass-bright);
   }
   .arm-head::after{
     content:"";
@@ -667,10 +697,10 @@
 
   .play-btn{
     width:52px; height:52px; border-radius:50%;
-    background: radial-gradient(circle at 35% 30%, var(--brass-bright), var(--brass) 75%);
+    background: radial-gradient(circle at 35% 30%, var(--ctrl-accent-1), var(--ctrl-accent-2) 75%);
     display:flex; align-items:center; justify-content:center;
-    box-shadow: 0 6px 14px rgba(0,0,0,0.5), inset 0 1px 1px rgba(255,255,255,0.4);
-    color: var(--walnut-dark);
+    box-shadow: 0 6px 14px var(--btn-shadow), inset 0 1px 1px rgba(255,255,255,0.4);
+    color: var(--ctrl-accent-fg);
   }
 
   /* ---- Volume ---- */
@@ -897,7 +927,7 @@
     display:flex; align-items:center; justify-content:center;
     transition: background 0.15s ease;
   }
-  .theme-btn.active{ background: var(--brass); }
+  .theme-btn.active{ background: var(--ctrl-accent-2); }
   .theme-swatch{
     width: 14px; height: 14px;
     border-radius: 50%;
@@ -1025,8 +1055,8 @@
     top: 50%; right: 6px;
     transform: translateY(-50%);
     width: 26px; height: 26px;
-    background: linear-gradient(160deg, var(--brass-bright), var(--brass));
-    color: var(--walnut-dark);
+    background: linear-gradient(160deg, var(--ctrl-accent-1), var(--ctrl-accent-2));
+    color: var(--ctrl-accent-fg);
     border: none;
     border-radius: 6px;
     display:flex; align-items:center; justify-content:center;
@@ -1484,8 +1514,8 @@
   }
   .edit-cancel-btn:hover{ background: rgba(var(--text-tint-rgb),0.14); }
   .edit-save-btn{
-    background: linear-gradient(160deg, var(--brass-bright), var(--brass));
-    color: var(--walnut-dark);
+    background: linear-gradient(160deg, var(--ctrl-accent-1), var(--ctrl-accent-2));
+    color: var(--ctrl-accent-fg);
   }
   .edit-save-btn:hover{ filter: brightness(1.05); }
 
