@@ -964,6 +964,25 @@
     pointer-events:none;
   }
   .lyrics-status a{ color: var(--brass-bright); pointer-events:auto; }
+  .lyrics-manual{
+    display:none;
+    width:100%;
+    max-height: 55vh;
+    min-height: 280px;
+    border-radius: 10px;
+    overflow-y:auto;
+    background: rgba(0,0,0,0.22);
+    box-shadow: inset 0 0 0 1px rgba(143,143,143,0.15);
+    padding: 18px 20px;
+    font-size: 13px;
+    line-height: 1.7;
+    color: var(--cream);
+    white-space: pre-wrap;
+  }
+  .lyrics-manual::-webkit-scrollbar{ width:6px; }
+  .lyrics-manual::-webkit-scrollbar-thumb{ background: var(--scrollbar-thumb); border-radius:3px; }
+  .lyrics-manual::-webkit-scrollbar-thumb:hover{ background: var(--scrollbar-thumb-hover); }
+  .lyrics-manual{ scrollbar-color: var(--scrollbar-thumb) transparent; }
   .lyrics-empty{
     font-size: 11px;
     color: rgba(var(--text-tint-rgb),0.35);
@@ -1633,6 +1652,21 @@
   }
   .edit-field input[type="text"]:focus{ border-color: var(--brass); }
   .edit-field input[type="text"]::placeholder{ color: rgba(var(--text-tint-rgb),0.35); }
+  .edit-field textarea{
+    width:100%;
+    background: rgba(0,0,0,0.18);
+    border: 1px solid rgba(143,143,143,0.25);
+    border-radius: 8px;
+    padding: 9px 11px;
+    color: var(--cream);
+    font-family: 'Space Mono', monospace;
+    font-size: 13px;
+    line-height: 1.5;
+    resize: vertical;
+    min-height: 90px;
+  }
+  .edit-field textarea:focus{ border-color: var(--brass); outline:none; }
+  .edit-field textarea::placeholder{ color: rgba(var(--text-tint-rgb),0.35); }
 
   /* ---- Album smart-suggestions dropdown (edit modal) ---- */
   .album-suggest{
@@ -1890,6 +1924,7 @@
         <iframe id="lyricsFrame" title="Lyrics" referrerpolicy="no-referrer"></iframe>
         <div class="lyrics-status" id="lyricsStatus"></div>
       </div>
+      <div class="lyrics-manual" id="lyricsManual"></div>
     </div>
   </div>
 </aside>
@@ -2053,6 +2088,10 @@
       <div class="edit-video-warning" id="editVideoWarning" style="display:none;">This song's YouTube link stopped working. Paste a new one below to fix it.</div>
       <label for="editVideoUrlInput">YouTube link</label>
       <input type="text" id="editVideoUrlInput" placeholder="Paste a YouTube link…">
+    </div>
+    <div class="edit-field">
+      <label for="editLyricsInput">Lyrics (optional, your own text)</label>
+      <textarea id="editLyricsInput" placeholder="Paste or type lyrics here…" rows="6"></textarea>
     </div>
     <div class="edit-modal-actions">
       <button class="edit-cancel-btn" id="editCancelBtn">Cancel</button>
@@ -2445,8 +2484,10 @@
   const lyricsSongTitle = document.getElementById('lyricsSongTitle');
   const lyricsSongArtist = document.getElementById('lyricsSongArtist');
   const lyricsOpenLink = document.getElementById('lyricsOpenLink');
+  const lyricsFrameWrap = document.getElementById('lyricsFrameWrap');
   const lyricsFrame = document.getElementById('lyricsFrame');
   const lyricsStatus = document.getElementById('lyricsStatus');
+  const lyricsManual = document.getElementById('lyricsManual');
   let activePanelTab = 'queue';
 
   // AZLyrics URLs follow a fixed slug convention: lowercase, strip a
@@ -2481,10 +2522,24 @@
       lyricsOpenLink.style.display = 'none';
       lyricsStatus.innerHTML = '<div class="lyrics-empty">Nothing playing yet.</div>';
       lyricsStatus.style.display = 'flex';
+      lyricsFrameWrap.style.display = '';
+      lyricsManual.style.display = 'none';
       return;
     }
     lyricsSongTitle.textContent = t.title;
     lyricsSongArtist.textContent = cleanArtist(t.artist);
+    // If the user has typed/pasted their own lyrics for this track, show
+    // that text directly instead of the AZLyrics embed.
+    if(t.lyrics && t.lyrics.trim()){
+      lyricsFrameWrap.style.display = 'none';
+      lyricsManual.style.display = 'block';
+      lyricsManual.textContent = t.lyrics;
+      lyricsOpenLink.style.display = azlyricsUrl(t) ? '' : 'none';
+      if(azlyricsUrl(t)) lyricsOpenLink.href = azlyricsUrl(t);
+      return;
+    }
+    lyricsFrameWrap.style.display = '';
+    lyricsManual.style.display = 'none';
     const url = azlyricsUrl(t);
     if(!url){
       lyricsFrame.src = 'about:blank';
@@ -4837,6 +4892,7 @@
   const editArtPreview = document.getElementById('editArtPreview');
   const editVideoUrlInput = document.getElementById('editVideoUrlInput');
   const editVideoWarning = document.getElementById('editVideoWarning');
+  const editLyricsInput = document.getElementById('editLyricsInput');
   let editingTrackId = null;
   let editingArtData = '';
 
@@ -4859,6 +4915,7 @@
     editVideoUrlInput.value = '';
     editVideoUrlInput.placeholder = t.videoId ? `youtube.com/watch?v=${t.videoId}` : 'Paste a YouTube link…';
     editVideoWarning.style.display = t.unavailable ? 'block' : 'none';
+    editLyricsInput.value = t.lyrics || '';
     editOverlay.classList.add('show');
     if(opts && opts.focusVideoUrl){
       setTimeout(() => editVideoUrlInput.focus(), 0);
@@ -4949,6 +5006,7 @@
     t.trackNo = Number.isFinite(trackNoNum) && trackNoNum > 0 ? trackNoNum : null;
     const urlArt = editArtUrlInput.value.trim();
     t.art = editingArtData || urlArt || '';
+    t.lyrics = editLyricsInput.value;
     const newVideoUrl = editVideoUrlInput.value.trim();
     let relinked = false;
     if(newVideoUrl){
